@@ -1,0 +1,1170 @@
+{
+    "phase": [
+        3,
+        0
+    ],
+    "hole_rank1": [
+        14,
+        2
+    ],
+    "hole_rank2": [
+        14,
+        2
+    ],
+    "max_hole_rank": [
+        14,
+        2
+    ],
+    "is_suited": [
+        1,
+        0
+    ],
+    "is_connected": [
+        1,
+        0
+    ],
+    "is_pocket_pair": [
+        1,
+        0
+    ],
+    "rank_gap": [
+        12,
+        0
+    ],
+    "position": [
+        5,
+        0
+    ],
+    "relative_position": [
+        3,
+        -1
+    ],
+    "positional_adv_index": [
+        3,
+        -2
+    ],
+    "in_position": [
+        1,
+        0
+    ],
+    "stack": [
+        10000,
+        0
+    ],
+    "pot_size": [
+        22599,
+        150
+    ],
+    "effective_stack_bb": [
+        100.0,
+        0.0
+    ],
+    "spr": [
+        66.66666666666667,
+        0.0
+    ],
+    "max_board_rank": [
+        14,
+        0
+    ],
+    "opponents_in_hand": [
+        5,
+        1
+    ],
+    "num_prev_folds": [
+        4,
+        0
+    ],
+    "num_prev_raises": [
+        7,
+        0
+    ],
+    "num_prev_calls": [
+        14,
+        0
+    ],
+    "last_aggressor_position": [
+        5,
+        -1
+    ],
+    "first_aggressor": [
+        5,
+        -1
+    ],
+    "max_bet_seen": [
+        10000,
+        0
+    ],
+    "prev_pluribus_move": [
+        2,
+        0
+    ],
+    "board_best_hand": [
+        5,
+        0
+    ],
+    "hole_best_hand": [
+        1,
+        0
+    ],
+    "combined_best_hand": [
+        7,
+        0
+    ],
+    "combined_is_high_card": [
+        1,
+        0
+    ],
+    "combined_is_pair": [
+        1,
+        0
+    ],
+    "combined_is_two_pair": [
+        1,
+        0
+    ],
+    "combined_is_trips": [
+        1,
+        0
+    ],
+    "combined_is_straight": [
+        1,
+        0
+    ],
+    "combined_is_flush": [
+        1,
+        0
+    ],
+    "combined_is_full_house": [
+        1,
+        0
+    ],
+    "combined_is_four_kind": [
+        1,
+        0
+    ],
+    "combined_is_straight_flush": [
+        0,
+        0
+    ],
+    "has_flush_draw": [
+        1,
+        0
+    ],
+    "has_open_ended_straight_draw": [
+        1,
+        0
+    ],
+    "recent_act_1_type": [
+        4,
+        0
+    ],
+    "recent_act_1_amt": [
+        10000,
+        -1
+    ],
+    "recent_act_1_pos": [
+        6,
+        0
+    ],
+    "recent_act_2_type": [
+        4,
+        0
+    ],
+    "recent_act_2_amt": [
+        10000,
+        -1
+    ],
+    "recent_act_2_pos": [
+        6,
+        0
+    ],
+    "recent_act_3_type": [
+        5,
+        0
+    ],
+    "recent_act_3_amt": [
+        10000,
+        -1
+    ],
+    "recent_act_3_pos": [
+        6,
+        0
+    ],
+    "stage": [
+        3,
+        0
+    ],
+    "call_cost": [
+        10000,
+        0
+    ],
+    "pot_odds": [
+        0.483695652173913,
+        0.0
+    ],
+    "overcard_count": [
+        5,
+        0
+    ],
+    "top_pair_flag": [
+        1,
+        0
+    ],
+    "second_pair_flag": [
+        1,
+        0
+    ],
+    "overpair_flag": [
+        1,
+        0
+    ],
+    "board_hole_gap_top": [
+        12,
+        -11
+    ],
+    "board_hole_gap_mid": [
+        11,
+        -12
+    ],
+    "pot_growth_from_prev_street": [
+        30.333333333333332,
+        1.0
+    ],
+    "pct_invested_from_start": [
+        1.0,
+        0.0
+    ],
+    "committed_30pct_plus": [
+        1,
+        0
+    ],
+    "is_paired_board": [
+        1,
+        0
+    ],
+    "is_monotone_flop": [
+        1,
+        0
+    ],
+    "two_tone_flop": [
+        1,
+        0
+    ],
+    "straight_draws_on": [
+        1,
+        0
+    ],
+    "connectedness_idx": [
+        14,
+        0
+    ],
+    "has_initiative_prev_street": [
+        1,
+        0
+    ],
+    "raises_this_street": [
+        5,
+        0
+    ],
+    "calls_this_street": [
+        4,
+        0
+    ],
+    "street_aggr_factor": [
+        5.0,
+        0.0
+    ],
+    "opp_actions_since_last_pluribus": [
+        11,
+        1
+    ],
+    "is_rfi_flag": [
+        1,
+        0
+    ],
+    "is_iso_flag": [
+        1,
+        0
+    ],
+    "is_squeeze_flag": [
+        1,
+        0
+    ],
+    "is_limped_pot_flag": [
+        1,
+        0
+    ],
+    "is_cbet_flag": [
+        1,
+        0
+    ],
+    "is_donk_flag": [
+        1,
+        0
+    ],
+    "is_xr_flag": [
+        1,
+        0
+    ],
+    "facing_bet_ratio_pot": [
+        0.9368421052631579,
+        0.0
+    ],
+    "action_index_in_street": [
+        11,
+        0
+    ],
+    "players_to_act_behind": [
+        5,
+        0
+    ],
+    "facing_bet": [
+        1,
+        0
+    ],
+    "facing_raise": [
+        1,
+        0
+    ],
+    "is_cbet_spot": [
+        1,
+        0
+    ],
+    "facing_cbet": [
+        1,
+        0
+    ],
+    "is_preflop_caller_flag": [
+        1,
+        0
+    ],
+    "board_high_card_density": [
+        5,
+        0
+    ],
+    "pair_is_top": [
+        1,
+        0
+    ],
+    "pair_is_middle": [
+        1,
+        0
+    ],
+    "pair_is_bottom": [
+        1,
+        0
+    ],
+    "trips_on_board": [
+        1,
+        0
+    ],
+    "max_suit_count_board": [
+        5,
+        0
+    ],
+    "nut_flush_draw_flag": [
+        1,
+        0
+    ],
+    "flush_draw_outs_approx": [
+        9,
+        0
+    ],
+    "straight_draw_type": [
+        3,
+        0
+    ],
+    "made_flush": [
+        0,
+        0
+    ],
+    "has_flush_now": [
+        1,
+        0
+    ],
+    "trip_plus_draw": [
+        1,
+        0
+    ],
+    "overpair_plus_draw": [
+        1,
+        0
+    ],
+    "set_plus_straight_draw": [
+        1,
+        0
+    ],
+    "players_between_hero_agg": [
+        1,
+        0
+    ],
+    "effective_position_index": [
+        1.5,
+        -1.0
+    ],
+    "pot_multi_way_index": [
+        4.0,
+        1.0
+    ],
+    "pot_odds_tier": [
+        1,
+        0
+    ],
+    "implied_odds_proxy": [
+        11.428571428571427,
+        0.0
+    ],
+    "stack_leverage_count": [
+        0,
+        0
+    ],
+    "avg_opp_spr": [
+        66.66666666666667,
+        0.33232443913447496
+    ],
+    "checks_this_street": [
+        4,
+        0
+    ],
+    "bet_into_checks_flag": [
+        1,
+        0
+    ],
+    "raise_freq_proxy_hand": [
+        1.0,
+        0.0
+    ],
+    "street_check_around_flag": [
+        1,
+        0
+    ],
+    "opp_fold_rate_hand": [
+        4.0,
+        0.0
+    ],
+    "limp_call_before_raise": [
+        1,
+        0
+    ],
+    "limp_count_before_hero": [
+        2.0,
+        0.0
+    ],
+    "blind_steal_spot": [
+        1.0,
+        0.0
+    ],
+    "facing_limp_raise": [
+        0.0,
+        0.0
+    ],
+    "avg_opp_raises": [
+        4.0,
+        0.0
+    ],
+    "passive_opps_count": [
+        5,
+        0
+    ],
+    "aggressive_burst": [
+        1,
+        0
+    ],
+    "value_showdown_split": [
+        2,
+        0
+    ],
+    "hand_strength_percentile": [
+        0.875,
+        0.0
+    ],
+    "improvement_potential": [
+        17,
+        0
+    ],
+    "vulnerable_hand_flag": [
+        1,
+        0
+    ],
+    "heads_up_vs_sb": [
+        1,
+        0
+    ],
+    "heads_up_vs_bb": [
+        1,
+        0
+    ],
+    "hero_checked_prev_street": [
+        1,
+        0
+    ],
+    "has_flush_blocker": [
+        1,
+        0
+    ],
+    "dist_to_closest_raiser_this_street": [
+        2,
+        0
+    ],
+    "dist_to_last_raiser_this_street": [
+        3,
+        0
+    ],
+    "call_to_raise_ratio_this_street": [
+        4.0,
+        0.0
+    ],
+    "hero_call_to_raise_ratio_hand": [
+        7.0,
+        0.0
+    ],
+    "is_small_blind": [
+        1,
+        0
+    ],
+    "is_big_blind": [
+        1,
+        0
+    ],
+    "aggression_switched_from_prev_street": [
+        1,
+        0
+    ],
+    "opp_preflop_total_call_amt": [
+        0,
+        0
+    ],
+    "opp_preflop_last_call_amt": [
+        0,
+        0
+    ],
+    "opp_preflop_call_count": [
+        3,
+        0
+    ],
+    "opp_raises_so_far_hand": [
+        4,
+        0
+    ],
+    "opp_raises_so_far_this_street": [
+        3,
+        0
+    ],
+    "opp_last_action_distance": [
+        2,
+        0
+    ],
+    "opp_switched_small": [
+        1,
+        0
+    ],
+    "opp_switched_big": [
+        1,
+        0
+    ],
+    "overcards_to_board": [
+        2,
+        0
+    ],
+    "undercards_to_board": [
+        2,
+        0
+    ],
+    "makes_top_pair": [
+        1,
+        0
+    ],
+    "makes_second_pair": [
+        1,
+        0
+    ],
+    "has_gutshot": [
+        1,
+        0
+    ],
+    "has_backdoor_flush": [
+        1,
+        0
+    ],
+    "has_backdoor_straight": [
+        1,
+        0
+    ],
+    "pair_plus_fd": [
+        1,
+        0
+    ],
+    "oesd_plus_fd": [
+        1,
+        0
+    ],
+    "overcards_plus_fd": [
+        1,
+        0
+    ],
+    "num_raises_pflop": [
+        0,
+        0
+    ],
+    "is_4bet_pot": [
+        0,
+        0
+    ],
+    "nut_flush_blocker": [
+        1,
+        0
+    ],
+    "p1_last_type": [
+        4,
+        -1
+    ],
+    "p1_last_amt": [
+        10000.0,
+        0.0
+    ],
+    "p2_last_type": [
+        4,
+        -1
+    ],
+    "p2_last_amt": [
+        10000.0,
+        0.0
+    ],
+    "p3_last_type": [
+        2,
+        -1
+    ],
+    "p3_last_amt": [
+        10000.0,
+        0.0
+    ],
+    "p5_last_type": [
+        4,
+        -1
+    ],
+    "p5_last_amt": [
+        10000.0,
+        0.0
+    ],
+    "p6_last_type": [
+        3,
+        -1
+    ],
+    "p6_last_amt": [
+        10000.0,
+        0.0
+    ],
+    "hole1_rank_2": [
+        1,
+        0
+    ],
+    "hole1_rank_3": [
+        1,
+        0
+    ],
+    "hole1_rank_4": [
+        1,
+        0
+    ],
+    "hole1_rank_5": [
+        1,
+        0
+    ],
+    "hole1_rank_6": [
+        1,
+        0
+    ],
+    "hole1_rank_7": [
+        1,
+        0
+    ],
+    "hole1_rank_8": [
+        1,
+        0
+    ],
+    "hole1_rank_9": [
+        1,
+        0
+    ],
+    "hole1_rank_10": [
+        1,
+        0
+    ],
+    "hole1_rank_11": [
+        1,
+        0
+    ],
+    "hole1_rank_12": [
+        1,
+        0
+    ],
+    "hole1_rank_13": [
+        1,
+        0
+    ],
+    "hole1_rank_14": [
+        1,
+        0
+    ],
+    "hole1_suit_0": [
+        1,
+        0
+    ],
+    "hole1_suit_1": [
+        1,
+        0
+    ],
+    "hole1_suit_2": [
+        1,
+        0
+    ],
+    "hole1_suit_3": [
+        1,
+        0
+    ],
+    "hole2_rank_2": [
+        1,
+        0
+    ],
+    "hole2_rank_3": [
+        1,
+        0
+    ],
+    "hole2_rank_4": [
+        1,
+        0
+    ],
+    "hole2_rank_5": [
+        1,
+        0
+    ],
+    "hole2_rank_6": [
+        1,
+        0
+    ],
+    "hole2_rank_7": [
+        1,
+        0
+    ],
+    "hole2_rank_8": [
+        1,
+        0
+    ],
+    "hole2_rank_9": [
+        1,
+        0
+    ],
+    "hole2_rank_10": [
+        1,
+        0
+    ],
+    "hole2_rank_11": [
+        1,
+        0
+    ],
+    "hole2_rank_12": [
+        1,
+        0
+    ],
+    "hole2_rank_13": [
+        1,
+        0
+    ],
+    "hole2_rank_14": [
+        1,
+        0
+    ],
+    "hole2_suit_0": [
+        1,
+        0
+    ],
+    "hole2_suit_1": [
+        1,
+        0
+    ],
+    "hole2_suit_2": [
+        1,
+        0
+    ],
+    "hole2_suit_3": [
+        1,
+        0
+    ],
+    "board1_rank_2": [
+        1,
+        0
+    ],
+    "board1_rank_3": [
+        1,
+        0
+    ],
+    "board1_rank_4": [
+        1,
+        0
+    ],
+    "board1_rank_5": [
+        1,
+        0
+    ],
+    "board1_rank_6": [
+        1,
+        0
+    ],
+    "board1_rank_7": [
+        1,
+        0
+    ],
+    "board1_rank_8": [
+        1,
+        0
+    ],
+    "board1_rank_9": [
+        1,
+        0
+    ],
+    "board1_rank_10": [
+        1,
+        0
+    ],
+    "board1_rank_11": [
+        1,
+        0
+    ],
+    "board1_rank_12": [
+        1,
+        0
+    ],
+    "board1_rank_13": [
+        1,
+        0
+    ],
+    "board1_rank_14": [
+        1,
+        0
+    ],
+    "board1_suit_0": [
+        1,
+        0
+    ],
+    "board1_suit_1": [
+        1,
+        0
+    ],
+    "board1_suit_2": [
+        1,
+        0
+    ],
+    "board1_suit_3": [
+        1,
+        0
+    ],
+    "board2_rank_2": [
+        1,
+        0
+    ],
+    "board2_rank_3": [
+        1,
+        0
+    ],
+    "board2_rank_4": [
+        1,
+        0
+    ],
+    "board2_rank_5": [
+        1,
+        0
+    ],
+    "board2_rank_6": [
+        1,
+        0
+    ],
+    "board2_rank_7": [
+        1,
+        0
+    ],
+    "board2_rank_8": [
+        1,
+        0
+    ],
+    "board2_rank_9": [
+        1,
+        0
+    ],
+    "board2_rank_10": [
+        1,
+        0
+    ],
+    "board2_rank_11": [
+        1,
+        0
+    ],
+    "board2_rank_12": [
+        1,
+        0
+    ],
+    "board2_rank_13": [
+        1,
+        0
+    ],
+    "board2_rank_14": [
+        1,
+        0
+    ],
+    "board2_suit_0": [
+        1,
+        0
+    ],
+    "board2_suit_1": [
+        1,
+        0
+    ],
+    "board2_suit_2": [
+        1,
+        0
+    ],
+    "board2_suit_3": [
+        1,
+        0
+    ],
+    "board3_rank_2": [
+        1,
+        0
+    ],
+    "board3_rank_3": [
+        1,
+        0
+    ],
+    "board3_rank_4": [
+        1,
+        0
+    ],
+    "board3_rank_5": [
+        1,
+        0
+    ],
+    "board3_rank_6": [
+        1,
+        0
+    ],
+    "board3_rank_7": [
+        1,
+        0
+    ],
+    "board3_rank_8": [
+        1,
+        0
+    ],
+    "board3_rank_9": [
+        1,
+        0
+    ],
+    "board3_rank_10": [
+        1,
+        0
+    ],
+    "board3_rank_11": [
+        1,
+        0
+    ],
+    "board3_rank_12": [
+        1,
+        0
+    ],
+    "board3_rank_13": [
+        1,
+        0
+    ],
+    "board3_rank_14": [
+        1,
+        0
+    ],
+    "board3_suit_0": [
+        1,
+        0
+    ],
+    "board3_suit_1": [
+        1,
+        0
+    ],
+    "board3_suit_2": [
+        1,
+        0
+    ],
+    "board3_suit_3": [
+        1,
+        0
+    ],
+    "board4_rank_2": [
+        1,
+        0
+    ],
+    "board4_rank_3": [
+        1,
+        0
+    ],
+    "board4_rank_4": [
+        1,
+        0
+    ],
+    "board4_rank_5": [
+        1,
+        0
+    ],
+    "board4_rank_6": [
+        1,
+        0
+    ],
+    "board4_rank_7": [
+        1,
+        0
+    ],
+    "board4_rank_8": [
+        1,
+        0
+    ],
+    "board4_rank_9": [
+        1,
+        0
+    ],
+    "board4_rank_10": [
+        1,
+        0
+    ],
+    "board4_rank_11": [
+        1,
+        0
+    ],
+    "board4_rank_12": [
+        1,
+        0
+    ],
+    "board4_rank_13": [
+        1,
+        0
+    ],
+    "board4_rank_14": [
+        1,
+        0
+    ],
+    "board4_suit_0": [
+        1,
+        0
+    ],
+    "board4_suit_1": [
+        1,
+        0
+    ],
+    "board4_suit_2": [
+        1,
+        0
+    ],
+    "board4_suit_3": [
+        1,
+        0
+    ],
+    "board5_rank_2": [
+        1,
+        0
+    ],
+    "board5_rank_3": [
+        1,
+        0
+    ],
+    "board5_rank_4": [
+        1,
+        0
+    ],
+    "board5_rank_5": [
+        1,
+        0
+    ],
+    "board5_rank_6": [
+        1,
+        0
+    ],
+    "board5_rank_7": [
+        1,
+        0
+    ],
+    "board5_rank_8": [
+        1,
+        0
+    ],
+    "board5_rank_9": [
+        1,
+        0
+    ],
+    "board5_rank_10": [
+        1,
+        0
+    ],
+    "board5_rank_11": [
+        1,
+        0
+    ],
+    "board5_rank_12": [
+        1,
+        0
+    ],
+    "board5_rank_13": [
+        1,
+        0
+    ],
+    "board5_rank_14": [
+        1,
+        0
+    ],
+    "board5_suit_0": [
+        1,
+        0
+    ],
+    "board5_suit_1": [
+        1,
+        0
+    ],
+    "board5_suit_2": [
+        1,
+        0
+    ],
+    "board5_suit_3": [
+        1,
+        0
+    ],
+    "m_ratio": [
+        100.0,
+        0.0
+    ],
+    "pct_committed": [
+        1.0,
+        0.014778325123152709
+    ],
+    "largest_opp_ratio": [
+        44.44444444444444,
+        0.0
+    ],
+    "smallest_opp_ratio": [
+        42.111111111111114,
+        -0.7864077669902912
+    ],
+    "is_heads_up": [
+        1,
+        0
+    ],
+    "is_three_way": [
+        1,
+        0
+    ],
+    "is_four_plus": [
+        1,
+        0
+    ],
+    "p4_last_type": [
+        4,
+        -1
+    ],
+    "p4_last_amt": [
+        10000.0,
+        0.0
+    ]
+}
