@@ -2536,11 +2536,12 @@ def render_player_table(game, table_img_path: str, card_img_path_fn, chip_img_pa
                 show_hole = True
             elif st.session_state.went_to_showdown and (not p.folded):
                     show_hole = True
-                    st.session_state.went_to_showdown = False
+                    
                     
             elif st.session_state.game_over:
-                if getattr(game, 'reveal_bot_hole_cards', False):
-                    show_hole = False
+                if getattr(game, 'reveal_bot_hole_cards', False) and (not p.folded):
+                    show_hole = True
+
                 
 
         card_imgs = ""
@@ -2897,6 +2898,8 @@ with c1:
       return f"card_imgs/{code}.png"
 
     render_player_table(game, table_img_path="poker_table_clip_art.jpg", card_img_path_fn=card_img_path,chip_img_path='poker_chip_clip_art.jpg')
+    if st.session_state.went_to_showdown:
+        st.session_state.went_to_showdown = False
 
 with c2:
 
