@@ -2538,12 +2538,6 @@ def render_player_table(game, table_img_path: str, card_img_path_fn, chip_img_pa
                     show_hole = True
                     
                     
-            elif st.session_state.game_over:
-                if getattr(game, 'reveal_bot_hole_cards', False) and (not p.folded):
-                    show_hole = True
-
-                
-
         card_imgs = ""
         if show_hole:
             uris = [img_to_data_uri(card_img_path_fn(c)) for c in p.hole]
