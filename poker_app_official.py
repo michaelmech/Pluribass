@@ -22,7 +22,7 @@ import pandas as pd
 import lightgbm as lgb
 from datetime import datetime
 
-MAMBA_CKPT = "/content/drive/MyDrive/checkpoints/augment_poker_transformer.pt"  # your saved file
+MAMBA_CKPT = "augment_poker_transformer.pt"  # your saved file
 device = torch.device("cpu")  # per your preference
 #model, normalizer, feature_keys, _ = load_poker_mamba(MAMBA_CKPT, device=device)
 model, normalizer, _, _ = load_poker_transformer(MAMBA_CKPT, device=device)
@@ -1684,7 +1684,7 @@ from mamba_data_gen import (
 
 # If not already present:
 ACTIONS = ["fold", "call", "raise"]  # index-aligned with your model’s logits
-DEFAULT_CKPT = "/content/drive/MyDrive/checkpoints/augment_poker_transformer.pt"
+DEFAULT_CKPT = "augment_poker_transformer.pt"
 
 class MambaBot:
     """
@@ -2043,7 +2043,7 @@ import pickle
 import pandas as pd  # only if you use the tabular raise model
 
 ACTIONS = ["fold", "call", "raise"]
-DEFAULT_CKPT = "/content/drive/MyDrive/checkpoints/augment_poker_transformer.pt"
+DEFAULT_CKPT = "augment_poker_transformer.pt"
 
 # You provide these:
 # - extract_pluribus_actions_mamba(...)
@@ -2300,7 +2300,7 @@ def _ensure_game_in_session():
 
     if fresh_needed:
         # ⚠️  create the *bot* objects first …
-        st.session_state.bots=  [TransformerBot("/content/drive/MyDrive/checkpoints/augment_poker_transformer.pt") for i in range( 1,6)]
+        st.session_state.bots=  [TransformerBot("augment_poker_transformer.pt") for i in range( 1,6)]
 
         #st.session_state.bots=[ Zach(),Yanchen(), William(),DonKeyxote(),MechIII()]
 
@@ -2834,7 +2834,7 @@ with st.sidebar:
     # Keep the button in the sidebar and give it a key
     if st.button("New Game (reset stacks)", key="sidebar_new_game"):
         # (Re)build bots
-        st.session_state.bots = [TransformerBot("/content/drive/MyDrive/checkpoints/augment_poker_transformer.pt") for _ in range(5)]
+        st.session_state.bots = [TransformerBot("augment_poker_transformer.pt") for _ in range(5)]
         for i, bot in enumerate(st.session_state.bots):
             bot.name += str(i)
 
