@@ -2050,7 +2050,7 @@ DEFAULT_CKPT = "augment_poker_transformer.pt"
 # - create_hand_dict(gs)
 # - state_to_df(gs, seat_idx)  # if using tabular raise model
 
-#@with_temperature_by_elims(temp_at_start=0.3, temp_at_end=0.9, end_players=2)
+@with_temperature_by_elims(temp_at_start=0.3, temp_at_end=0.6, end_players=2)
 @with_commitment_rule(0.6)
 @with_short_stack_nash_equilibrium()
 class TransformerBot:
