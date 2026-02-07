@@ -1818,7 +1818,7 @@ class MambaBot:
         call_ok = 1 if stack >= to_call else 0
 
         min_inc = getattr(gs, "last_raise_increment", getattr(gs, "bb_amount", 1))
-        raise_ok = 1 if (not getattr(hero, "is_all_in", False)) and stack > to_call and (stack - to_call) >= min_inc else 0
+        raise_ok = 1 if (not getattr(hero, "is_all_in", False)) and stack > to_call else 0
 
         if getattr(hero, "is_all_in", False):
             return torch.tensor([0, 1 if to_call == 0 else 0, 0], dtype=torch.uint8)
@@ -2229,7 +2229,7 @@ class TransformerBot:
         call_ok = 1 if stack >= to_call else 0
 
         min_inc = getattr(gs, "last_raise_increment", getattr(gs, "bb_amount", 1))
-        raise_ok = 1 if (not getattr(hero, "is_all_in", False)) and stack > to_call and (stack - to_call) >= min_inc else 0
+        raise_ok = 1 if (not getattr(hero, "is_all_in", False)) and stack > to_call else 0
 
         if getattr(hero, "is_all_in", False):
             return torch.tensor([0, 1 if to_call == 0 else 0, 0], dtype=torch.uint8)
@@ -2852,9 +2852,9 @@ with st.sidebar:
         st.rerun()
 
 
-    if st.button("Start New Hand"):
-        game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
-        st.session_state.went_to_showdown=False
+    #if st.button("Start New Hand"):
+    #    game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
+    #    st.session_state.went_to_showdown=False
     st.header("Hand History")
     st.code("\n".join(game.hand_history[-50:]), height=300)
 
@@ -2935,6 +2935,11 @@ with c2:
             if st.button(btn_label, use_container_width=True):
                 handle_player_action("raise", raise_amount)
                 st.rerun()
+
+with st.container(border=True):
+    if st.button("Start new hand", use_container_width=True):
+        start_new_hand()  # whatever your function is
+        st.rerun()
 
 # Bot Action Logic
 if not st.session_state.game_over and game.players[game.next_to_act_pos].is_bot:
