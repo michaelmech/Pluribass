@@ -2936,9 +2936,9 @@ with c2:
                 st.rerun()
 
        
-        if st.button("Start New Hand"):
-            game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
-            st.session_state.went_to_showdown=False
+    if st.button("Start New Hand"):
+        game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
+        st.session_state.went_to_showdown=False
 
 # Bot Action Logic
 if not st.session_state.game_over and game.players[game.next_to_act_pos].is_bot:
