@@ -2853,11 +2853,7 @@ with st.sidebar:
 
     st.header("Hand History")
     st.code("\n".join(game.hand_history[-50:]), height=300)
-
-    # Hand history panel
-    with st.container(border=True):
-        st.subheader("Hand history")
-        st.text(hand_history_text)  # or whatever you use
+   
     
     # Disclaimer under it
     with st.container(border=True):
