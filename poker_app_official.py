@@ -2935,9 +2935,10 @@ with c2:
                 handle_player_action("raise", raise_amount)
                 st.rerun()
 
+        if st.session_state.game_over:
             with st.container(border=True):
-                if st.button("Start new hand", use_container_width=True):
-                    start_new_hand()  # whatever your function is
+                if st.button("Start new hand", key="start_new_hand_btn", use_container_width=True):
+                    start_new_hand()
                     st.rerun()
 
 # Bot Action Logic
