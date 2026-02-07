@@ -2070,7 +2070,7 @@ class TransformerBot:
         raise_outputs: str = "multiplier",  # "multiplier" (×pot) or "total"
         temperature: Optional[float] = 0.3,  # None/0 => greedy; >0 => sample
         emit_check: bool = False,
-        name: str = "transformer",
+        name: str = "Pluribass",
     ):
         self.device = device or torch.device("cpu")
 
@@ -2857,7 +2857,7 @@ with st.sidebar:
     
     # Disclaimer under it
     with st.container(border=True):
-        st.caption("Rules disclaimer (this app)")
+        st.caption("Rules")
     
         st.markdown(
     '''
