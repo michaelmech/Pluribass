@@ -2938,7 +2938,7 @@ with c2:
         if st.session_state.game_over:
             with st.container(border=True):
                 if st.button("Start new hand", key="start_new_hand_btn", use_container_width=True):
-                    start_new_hand()
+                    game.start_new_hand()
                     st.rerun()
 
 # Bot Action Logic
