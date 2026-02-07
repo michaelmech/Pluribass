@@ -637,6 +637,10 @@ class GameStateOriginal:
         self.bb_option_done = False
 
     def start_new_hand(self):
+        if self.players[0].stack <= 0:
+            self.reset_game()
+            return
+    
         """Resets the game state for a new hand."""
         self.players = [self.players[0]] + [p for p in self.players[1:] if p.stack > 0]
         self.starting_stacks = [p.stack for p in self.players]
@@ -2809,8 +2813,6 @@ def end_hand():
 
 
 # --- UI Layout ---
-# --- UI Layout ---
-st.title("Poker Game: You vs. 5 Bots")
 
 _ensure_game_in_session()
 
