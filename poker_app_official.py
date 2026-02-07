@@ -53,7 +53,7 @@ class PickleableBooster:
 from functools import wraps
 
 
-def with_temperature_by_elims_postflop_only(
+def with_temperature_by_elims(
     *,
     start_players: int = 6,
     temp_at_start: float = 0.3,
