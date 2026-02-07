@@ -2868,7 +2868,7 @@ with st.sidebar:
     - The blinds increase every 7 hands by 50%. 
     
     **Minimum raise (no-limit)**
-    - A legal minimum raise must increase the bet by at least the **last raise size** (BB is considered first raise) or all-in. 
+    - A legal minimum raise must increase the bet by at least the BB or all-in. 
     '''
         )
 
