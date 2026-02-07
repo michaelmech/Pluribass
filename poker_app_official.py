@@ -2935,9 +2935,9 @@ with c2:
                 handle_player_action("raise", raise_amount)
                 st.rerun()
 
-        if gs.street == "showdown":
+        if game.street == "showdown":
             if st.button("Start new hand"):
-                gs.start_new_hand()
+                game.start_new_hand()
                 st.rerun()
 
 # Bot Action Logic
