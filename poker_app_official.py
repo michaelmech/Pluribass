@@ -52,43 +52,46 @@ class PickleableBooster:
 
 from functools import wraps
 
-def with_temperature_by_elims(
+
+def with_temperature_by_elims_postflop_only(
     *,
     start_players: int = 6,
     temp_at_start: float = 0.3,
-    temp_at_end: float = 1.0,     # when 1 player remains (or heads-up if you prefer)
-    end_players: int = 2,         # set to 1 if you truly want it to ramp until winner
+    temp_at_end: float = 1.0,
+    end_players: int = 2,
+    preflop_temperature: float | None = None,  # None => leave whatever you already have
 ):
-    """
-    Linearly ramps temperature as players are eliminated.
-
-    players_remaining = len(gs.get_live_players())
-    fraction = (start_players - players_remaining) / (start_players - end_players)
-    temp = lerp(temp_at_start, temp_at_end, clamp(fraction))
-    """
     def decorator(cls):
         orig_get_action = cls.get_action
 
         @wraps(orig_get_action)
         def wrapped(self, gs, seat_idx):
+            street = getattr(gs, "street", "").lower()
+
+            # deterministic/fixed behavior on preflop
+            if street == "preflop":
+                if preflop_temperature is not None:
+                    self.temperature = preflop_temperature
+                return orig_get_action(self, gs, seat_idx)
+
+            # postflop: ramp by eliminations (same logic as your existing decorator)
             if hasattr(gs, "get_live_players"):
                 alive = len(gs.get_live_players())
             else:
-                # fallback: count non-folded
-                alive = sum(1 for p in gs.players if not p.folded)
+                alive = sum(1 for p in gs.players if not getattr(p, "folded", False))
 
             denom = max(1, (start_players - end_players))
             frac = (start_players - alive) / denom
             frac = max(0.0, min(1.0, frac))
 
             self.temperature = temp_at_start + frac * (temp_at_end - temp_at_start)
-
             return orig_get_action(self, gs, seat_idx)
 
         cls.get_action = wrapped
         return cls
 
     return decorator
+
 
 
 def with_commitment_rule(commit_frac=0.6):
@@ -1596,20 +1599,22 @@ def with_stack_depth_adjustment(*, deep_thresh_bb=60, short_thresh_bb=25):
 import random
 from functools import wraps
 
-def gto_mixed_strategy(mix_strength=0.15, random_raise_factor=(0.8, 1.2)):
-
+def gto_mixed_strategy(mix_strength=0.15, random_raise_factor=(0.8, 1.2), *, mix_preflop=False):
     def decorator(func):
         @wraps(func)
         def wrapper(self, gs, idx):
             action, amt = func(self, gs, idx)
 
-            # 1️⃣ Randomly flip action ~ mix_strength
+            street = getattr(gs, "street", "").lower()
+            if street == "preflop" and not mix_preflop:
+                return action, amt  # deterministic preflop
+
+            # existing randomness (postflop)
             if random.random() < mix_strength:
                 alt_choices = ["fold", "call", "raise"]
                 alt_choices.remove(action)
                 action = random.choice(alt_choices)
 
-                # If we swapped to raise → randomize pot-sized
                 if action == "raise":
                     pot = gs.pots[0].amount
                     base_amt = max(gs.current_bet - gs.players[idx].bet_this_street, 0) + pot
@@ -1621,7 +1626,6 @@ def gto_mixed_strategy(mix_strength=0.15, random_raise_factor=(0.8, 1.2)):
                 else:
                     amt = 0
 
-            # 2️⃣ If it's a raise anyway, slightly randomize the sizing
             elif action == "raise":
                 amt = int(amt * random.uniform(*random_raise_factor))
                 amt = max(min(amt, gs.players[idx].stack), gs.current_bet + gs.bb_amount)
