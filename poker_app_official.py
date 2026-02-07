@@ -2861,14 +2861,11 @@ with st.sidebar:
     
         st.markdown(
             f"""
-    **Big blind increase**
-    - The big blind increases every **{BB_INCREASE_EVERY_HANDS}** hands (or whatever your rule is).
-    - When it increases, **all raise sliders use the new BB step size**.
+    **Blind Increases**
+    - The blinds increase every 7 hands by 50%. 
     
     **Minimum raise (no-limit)**
-    - A legal *full* minimum raise must increase the bet by at least the **last raise size**.
-    - If a player goes **all-in for less than a full minimum raise**, it is allowed but **does not reopen betting** for players who have already acted (standard poker rule).
-            """.strip()
+    - A legal *full* minimum raise must increase the bet by at least the **last raise size** or all-in. 
         )
 
     
