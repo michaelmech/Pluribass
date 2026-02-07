@@ -2936,10 +2936,10 @@ with c2:
                 handle_player_action("raise", raise_amount)
                 st.rerun()
 
-with st.container(border=True):
-    if st.button("Start new hand", use_container_width=True):
-        start_new_hand()  # whatever your function is
-        st.rerun()
+            with st.container(border=True):
+                if st.button("Start new hand", use_container_width=True):
+                    start_new_hand()  # whatever your function is
+                    st.rerun()
 
 # Bot Action Logic
 if not st.session_state.game_over and game.players[game.next_to_act_pos].is_bot:
