@@ -2902,7 +2902,7 @@ with c2:
     st.header("Your Actions")
     hero = game.players[0]
     if hero.stack <= 0:
-        self.reset_game()
+        game.reset_game()
     
     is_hero_turn = (game.next_to_act_pos == 0) and not st.session_state.game_over and not hero.is_all_in
    
