@@ -2860,12 +2860,13 @@ with st.sidebar:
         st.caption("Rules disclaimer (this app)")
     
         st.markdown(
-        "
+    '''
     **Blind Increases**
     - The blinds increase every 7 hands by 50%. 
     
     **Minimum raise (no-limit)**
     - A legal *full* minimum raise must increase the bet by at least the **last raise size** or all-in." 
+    '''
         )
 
     
