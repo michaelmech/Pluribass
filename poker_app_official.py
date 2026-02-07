@@ -637,9 +637,6 @@ class GameStateOriginal:
         self.bb_option_done = False
 
     def start_new_hand(self):
-        if self.players[0].stack <= 0:
-            self.reset_game()
-            return
     
         """Resets the game state for a new hand."""
         self.players = [self.players[0]] + [p for p in self.players[1:] if p.stack > 0]
@@ -2904,7 +2901,11 @@ with c2:
 
     st.header("Your Actions")
     hero = game.players[0]
+    if hero.stack <= 0:
+        self.reset_game()
+    
     is_hero_turn = (game.next_to_act_pos == 0) and not st.session_state.game_over and not hero.is_all_in
+   
     amount_to_call = game.current_bet - hero.bet_this_street
 
     with st.expander("Actions", expanded=True):
