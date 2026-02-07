@@ -2851,26 +2851,31 @@ with st.sidebar:
 
         st.rerun()
 
-
-    #if st.button("Start New Hand"):
-    #    game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
-    #    st.session_state.went_to_showdown=False
     st.header("Hand History")
     st.code("\n".join(game.hand_history[-50:]), height=300)
 
-    #st.header("Export Hands")
-    #if st.sidebar.button("Download Collected Hands as CSV"):
-    #    if st.session_state.played_hand_rows:
-     #       df = pd.DataFrame(st.session_state.played_hand_rows)
-      #      st.sidebar.download_button(
-       #         label="Download CSV",
-        #        data=df.to_csv(index=False).encode(),
-         #       file_name="played_hands.csv",
-          #      mime="text/csv"
-          #  )
-        #else:
-            #st.sidebar.warning("No hands recorded yet.")
+    # Hand history panel
+    with st.container(border=True):
+        st.subheader("Hand history")
+        st.text(hand_history_text)  # or whatever you use
+    
+    # Disclaimer under it
+    with st.container(border=True):
+        st.caption("Rules disclaimer (this app)")
+    
+        st.markdown(
+            f"""
+    **Big blind increase**
+    - The big blind increases every **{BB_INCREASE_EVERY_HANDS}** hands (or whatever your rule is).
+    - When it increases, **all raise sliders use the new BB step size**.
+    
+    **Minimum raise (no-limit)**
+    - A legal *full* minimum raise must increase the bet by at least the **last raise size**.
+    - If a player goes **all-in for less than a full minimum raise**, it is allowed but **does not reopen betting** for players who have already acted (standard poker rule).
+            """.strip()
+        )
 
+    
 
 c1, c2 = st.columns([3, 1])
 st.set_page_config(layout="wide")
