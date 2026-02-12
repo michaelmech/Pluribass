@@ -2396,8 +2396,8 @@ def handle_player_action(action: str, amount: int = 0):
         # A raise must increase the bet by **at least**
         #   • the last raise increment, OR
         #   • the big blind if this is the first raise of the street.
-        #min_increment = game.bb_amount
-        min_increment = max(game.bb_amount, getattr(game, "last_raise_increment", game.bb_amount))
+        min_increment = game.bb_amount
+        #min_increment = max(game.bb_amount, getattr(game, "last_raise_increment", game.bb_amount))
         min_total     = game.current_bet + min_increment
 
         # ── 2️⃣  Too small?  Treat it as a call (or all‑in call). ────────────
