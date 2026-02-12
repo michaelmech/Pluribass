@@ -2901,7 +2901,7 @@ with c2:
 
     st.header("Your Actions")
     hero = game.players[0]
-    if hero.stack <= 0:
+    if hero.stack <= 0 and st.session_state.went_to_showdown:
         time.sleep(10)
         game.reset_game()
     
