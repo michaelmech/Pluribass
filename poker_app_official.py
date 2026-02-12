@@ -2397,7 +2397,8 @@ def handle_player_action(action: str, amount: int = 0):
         # A raise must increase the bet by **at least**
         #   • the last raise increment, OR
         #   • the big blind if this is the first raise of the street.
-        min_increment = game.bb_amount
+        #min_increment = game.bb_amount
+        min_increment = max(game.bb_amount, getattr(game, "last_raise_increment", game.bb_amount))
         min_total     = game.current_bet + min_increment
 
         # ── 2️⃣  Too small?  Treat it as a call (or all‑in call). ────────────
@@ -2902,9 +2903,7 @@ with c2:
 
     st.header("Your Actions")
     hero = game.players[0]
-    if hero.stack <= 0 and st.session_state.went_to_showdown:
-        time.sleep(10)
-        game.reset_game()
+
     
     is_hero_turn = (game.next_to_act_pos == 0) and not st.session_state.game_over and not hero.is_all_in
    
@@ -2946,6 +2945,9 @@ with c2:
 
        
     if st.button("Start New Hand"):
+        if hero.stack <= 0:
+            time.sleep(2)
+            game.reset_game()
         game.reset_round(); st.session_state.game_over, st.session_state.winner_info = False, ""; st.rerun()
         st.session_state.went_to_showdown=False
 
