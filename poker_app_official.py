@@ -2295,8 +2295,7 @@ class TransformerBot:
 
 
 # --- Streamlit UI Application ---
-#st.set_page_config(page_title="Poker vs AI", layout="wide")
-st.title("fuck u Griffen")
+st.set_page_config(page_title="Poker vs AI", layout="wide")
 
 import os
 
