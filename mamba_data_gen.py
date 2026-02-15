@@ -512,6 +512,455 @@ def infer_single_step(model, normalizer, x_vec: torch.Tensor, legal_mask: torch.
 Mamba‑ready sequential extractor for PHH hands with simplified 3-class labels: fold, call, raise, plus PHH zip processor.
 """
 
+
+
+
+# --- Simple PHH parser (string -> dict) ---------------------------------------
+import ast, zipfile
+
+def parse_phh_string(file_content: str) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    for line in file_content.splitlines():
+        if '=' in line:
+            key, val = line.strip().split('=', 1)
+            key = key.strip()
+            val = val.strip()
+            try:
+                data[key] = ast.literal_eval(val)
+            except Exception:
+                data[key] = val
+    return data
+
+# --- Zip processor wired to the new extractor ---------------------------------
+
+
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from typing import Any, Dict, List, Optional, Set
+
+# NOTE: This function assumes all helper utilities referenced below already exist in your codebase:
+# - infer_blinds_antes, _split_cards, encode_hand, encode_card
+# - _board_so_far, _phase_from_board_len, _to_call, _legal_mask
+# - PreflopAllInTracker, update_preflop_allin_tracker, _facing_allin_preflop
+# - _is_functional_allin_for_hero, SHOVE_THRESHOLD
+# - is_suited_hole, is_connected_hole, flush_draw_flag, straight_draw_flag
+# - chen_strength_2c, _hand_buckets
+# - _label_preflop, _label_postflop, ACTION_TO_ID
+# - pid_to_idx (mapping like {"p1":0, "p2":1, ...})
+# - PHASE_IDS
+
+
+def extract_pluribus_actions_mamba(
+    hand: Dict[str, Any],
+    *,
+    name: str = "Pluribus",
+    include_card_ints: bool = True,
+    include_basic_scalars: bool = True,
+    file_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Parse a hand dict into Mamba/Transformer-style sequential steps.
+
+    Compared to the earlier version, this adds a set of non-lag, high-signal
+    context features ported from the tabular extractor:
+      - street sequencing: action_index_in_street, players_to_act_behind,
+        opp_actions_since_last_hero
+      - aggression: raises_this_street, calls_this_street, street_aggr_factor
+      - initiative: has_initiative_prev_street, aggression_switched_from_prev_street
+      - facing context: facing_bet, facing_raise, is_cbet_spot, facing_cbet
+      - pot/stack dynamics: pct_invested_from_start, committed_30pct_plus,
+        pot_growth_from_prev_street, facing_bet_ratio_pot
+      - board texture + hole↔board relations: paired/trips/connectedness,
+        suit texture, overcards/top pair/overpair, board-hole gaps
+
+    It intentionally avoids explicit lag features (e.g., last 3 actions flattened)
+    since the sequence model can learn those directly.
+    """
+
+    # ── Parse raw fields ─────────────────────────────────────────────────────
+    actions: List[str] = eval(hand.get("actions", []))
+    players: List[str] = eval(hand.get("players", []))
+    blinds: List[int] = eval(hand.get("blinds_or_straddles", []))
+    stacks0: List[int] = eval(hand.get("starting_stacks", []))
+
+    n_players = len(players) if players else 6
+    sb_amt, bb_amt_inferred, ante_pp = infer_blinds_antes(blinds, n_players)
+    bb_amt = (blinds[1] if len(blinds) > 1 else 0) or bb_amt_inferred or 1
+
+    # Guard: hero must be seated
+    if not players or name not in players:
+        return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": []}
+
+    hero_tag = f"p{players.index(name) + 1}"
+    hero_idx = players.index(name)
+
+    # ── State trackers ───────────────────────────────────────────────────────
+    put_in: Dict[str, float] = {f"p{i}": 0.0 for i in range(1, 7)}
+    cur_pot: float = float(sum(blinds))
+    hero_stack: float = float(stacks0[hero_idx])
+    hero_stack0: float = float(stacks0[hero_idx])
+
+    # Board reveal events to know current street by index
+    board_events = [(i, _split_cards("".join(a.split()[2:])))
+                    for i, a in enumerate(actions) if a.startswith("d db ")]
+
+    # Hero hole cards
+    hero_hand = next((a.split()[-1] for a in actions if a.startswith(f"d dh {hero_tag} ")), None)
+    if hero_hand is None:
+        return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": []}
+    r1, s1, r2, s2 = encode_hand(hero_hand)
+
+    steps: List[Dict[str, Any]] = []
+    max_bet = 0.0
+    current_street = "preflop"
+    live: Set[str] = {f"p{i}" for i in range(1, 7)}
+
+    seat_order = [f"p{i}" for i in range(1, 7)]
+    hero_seat = seat_order.index(hero_tag)
+
+    # Keep your prior flags
+    aggr_preflop_seen = False
+
+    # ── Preflop all-in tracker + functional-all-in buffers ───────────────────
+    pf_tracker = PreflopAllInTracker()
+    shove_putins: List[float] = []
+    first_shover_pid: Optional[str] = None
+
+    # ── NEW: street-level context trackers (ported from tabular) ─────────────
+    pot_at_street_start: Dict[str, float] = {"preflop": float(cur_pot)}
+    last_agg_pid_prev_street: Optional[str] = None
+    last_agg_pid_this_street: Optional[str] = None
+    initiative_prev_street_flag: int = 0
+
+    raises_this_street = 0
+    calls_this_street = 0
+    acted_pids_this_street: Set[str] = set()
+
+    # First preflop raiser (PFR)
+    pfr_pid: Optional[str] = None
+
+    # Count opponent actions since hero last acted (resets when hero acts)
+    opp_actions_since_last_hero = 0
+
+    prev_map = {"flop": "preflop", "turn": "flop", "river": "turn"}
+
+    # ── Iterate through actions ──────────────────────────────────────────────
+    for idx, act in enumerate(actions):
+        board_sofar = _board_so_far(idx, board_events)
+        street = _phase_from_board_len(len(board_sofar))
+
+        # Street change → reset per-street put-ins/max_bet (your original logic)
+        if street != current_street:
+            # initiative for the NEW street = hero was last aggressor on previous street
+            initiative_prev_street_flag = int(last_agg_pid_this_street == hero_tag)
+            last_agg_pid_prev_street = last_agg_pid_this_street
+
+            pot_at_street_start[street] = float(cur_pot)
+
+            # reset street counters
+            raises_this_street = 0
+            calls_this_street = 0
+            acted_pids_this_street = set()
+
+            # reset since-hero counter on street transitions
+            opp_actions_since_last_hero = 0
+
+            # reset per-street investment tracking
+            max_bet = 0.0
+            for k in put_in:
+                put_in[k] = 0.0
+
+            current_street = street
+            last_agg_pid_this_street = None
+
+        # Only care about player actions
+        if not act.startswith("p"):
+            continue
+
+        parts = act.split()
+        pid = parts[0]
+        a_type = parts[1] if len(parts) > 1 else ""
+        a_amt = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
+
+        # Track street sequencing (only from history up to this node)
+        acted_pids_this_street.add(pid)
+        if a_type == "cbr":
+            raises_this_street += 1
+            last_agg_pid_this_street = pid
+            if street == "preflop" and pfr_pid is None:
+                pfr_pid = pid
+        elif a_type == "cc":
+            calls_this_street += 1
+
+        if pid != hero_tag:
+            opp_actions_since_last_hero += 1
+
+        # ── Opponent actions: update pot/put-in/tracker, detect functional all-in
+        if pid != hero_tag:
+            if a_type in ("cc", "cbr"):
+                amt = max(0, a_amt or 0)
+                put_in[pid] += float(amt)
+                max_bet = max(max_bet, put_in[pid])
+                cur_pot += float(amt)
+
+                update_preflop_allin_tracker(
+                    pf_tracker, pid=pid, a_type=a_type, a_amt=a_amt,
+                    put_in=put_in, stacks0=stacks0, street=street
+                )
+
+                if street == "preflop" and a_type == "cbr" and not aggr_preflop_seen:
+                    aggr_preflop_seen = True
+
+                # functional all-in detection for hero
+                if street == "preflop" and a_type == "cbr":
+                    new_putin = float(put_in[pid])
+                    hero_already_putin = float(put_in[hero_tag])
+                    hero_remaining_stack_now = float(hero_stack)
+
+                    if _is_functional_allin_for_hero(
+                        new_putin_opp=new_putin,
+                        hero_already_putin=hero_already_putin,
+                        hero_remaining_stack=hero_remaining_stack_now,
+                        threshold=SHOVE_THRESHOLD,
+                    ):
+                        shove_putins.append(new_putin)
+                        if first_shover_pid is None:
+                            first_shover_pid = pid
+
+            if a_type == "f":
+                live.discard(pid)
+
+        # ── Hero decision point: build features + label ───────────────────────
+        if pid == hero_tag:
+            already = float(put_in[hero_tag])
+            to_call = float(_to_call(max_bet, already))
+            pot_odds = (to_call / max(cur_pot + to_call, 1.0)) if to_call > 0 else 0.0
+            spr = (hero_stack / max(cur_pot, 1.0)) if cur_pot > 0 else 0.0
+            call_vs_pot = to_call / max(cur_pot, 1.0)
+
+            players_alive = len(live)
+            denom = float(sb_amt + bb_amt + ante_pp * players_alive)
+            m_ratio = float(hero_stack) / max(1.0, denom)
+
+            # players to act behind (street-local)
+            players_to_act_behind = 0
+            for step_ahead in range(1, 6):
+                pid_after = seat_order[(hero_seat + step_ahead) % 6]
+                if pid_after in live and pid_after != hero_tag and pid_after not in acted_pids_this_street:
+                    players_to_act_behind += 1
+
+            # Simple 6-max pos bucket using player index
+            hero_pos_bucket = 0 if hero_idx in (0, 1) else (1 if hero_idx in (2, 3) else 2)
+
+            # Encode board (optional)
+            board_ranks: List[int] = []
+            board_suits: List[int] = []
+            if include_card_ints:
+                for i in range(5):
+                    if i < len(board_sofar):
+                        rk, st = encode_card(board_sofar[i])
+                    else:
+                        rk, st = 0, -1
+                    board_ranks.append(int(rk))
+                    board_suits.append(int(st))
+
+            board_ranks_vis = [rk for rk in board_ranks if rk > 0]
+            board_suits_vis = [st for st in board_suits if st >= 0]
+
+            # Base feature dict
+            x: Dict[str, Any] = {"phase_id": PHASE_IDS.get(street, -1)}
+            x.setdefault("facing_allin_preflop", 0)
+
+            # card buckets placeholders you already used
+            x.setdefault("is_pair", 0)
+            x.setdefault("pair_rank_bucket", 0)
+            x.setdefault("has_broadway", 0)
+            x.setdefault("eff_stack_vs_first_shove_bb", 0.0)
+            x.setdefault("to_call_vs_first_shove_bb", 0.0)
+
+            # position
+            x["hero_pos_bucket"] = int(hero_pos_bucket)
+
+            if include_basic_scalars:
+                x.update({
+                    "spr": float(spr),
+                    "pot_odds": float(pot_odds),
+                    "opponents_live": int(len(live) - 1 if hero_tag in live else len(live)),
+                    "call_vs_pot": float(call_vs_pot),
+                    # "m_ratio": float(m_ratio),
+                })
+
+            if include_card_ints:
+                x.update({
+                    "hole_r1": int(r1), "hole_s1": int(s1),
+                    "hole_r2": int(r2), "hole_s2": int(s2),
+                    "b1_r": board_ranks[0], "b1_s": board_suits[0],
+                    "b2_r": board_ranks[1], "b2_s": board_suits[1],
+                    "b3_r": board_ranks[2], "b3_s": board_suits[2],
+                    "b4_r": board_ranks[3], "b4_s": board_suits[3],
+                    "b5_r": board_ranks[4], "b5_s": board_suits[4],
+                })
+
+            # Hole-card booleans + draw hints
+            x["is_suited"] = int(is_suited_hole(r1, s1, r2, s2))
+            x["is_connected"] = int(is_connected_hole(r1, r2, allow_one_gap=True))
+            x["flush_draw"] = int(flush_draw_flag(s1, s2, board_suits_vis))
+            x["straight_draw"] = int(straight_draw_flag(r1, r2, board_ranks_vis))
+            x["hand_strength_chen"] = float(chen_strength_2c(hero_hand)) if hero_hand else 0.0
+
+            # ── NEW: sequencing / action depth features ───────────────────────
+            x["action_index_in_street"] = int(len(acted_pids_this_street))
+            x["players_to_act_behind"] = int(players_to_act_behind)
+            x["opp_actions_since_last_hero"] = int(opp_actions_since_last_hero)
+
+            # ── NEW: aggression / initiative context ─────────────────────────
+            x["raises_this_street"] = int(raises_this_street)
+            x["calls_this_street"] = int(calls_this_street)
+            x["street_aggr_factor"] = float(raises_this_street / (calls_this_street + 1.0))
+
+            x["has_initiative_prev_street"] = int(initiative_prev_street_flag)
+            x["aggression_switched_from_prev_street"] = int(
+                (street in ("flop", "turn", "river"))
+                and (last_agg_pid_prev_street is not None)
+                and (last_agg_pid_prev_street != last_agg_pid_this_street)
+            )
+
+            # ── NEW: facing bet/raise + cbet context ─────────────────────────
+            facing_bet = int(raises_this_street > 0 and last_agg_pid_this_street != hero_tag)
+            x["facing_bet"] = int(facing_bet)
+            x["facing_raise"] = int(facing_bet)  # robust definition
+
+            is_postflop = int(street in ("flop", "turn", "river"))
+            street_has_bet = int(raises_this_street > 0)
+            x["is_cbet_spot"] = int(is_postflop and (pfr_pid == hero_tag) and (street_has_bet == 0))
+            x["facing_cbet"] = int(is_postflop and (pfr_pid not in (None, hero_tag)) and street_has_bet and (last_agg_pid_this_street == pfr_pid))
+
+            # ── NEW: pot/stack dynamics ──────────────────────────────────────
+            pct_invested = float((hero_stack0 - hero_stack) / max(hero_stack0, 1.0))
+            x["pct_invested_from_start"] = pct_invested
+            x["committed_30pct_plus"] = int(pct_invested >= 0.30)
+
+            if street in ("flop", "turn", "river"):
+                prev_st = prev_map[street]
+                x["pot_growth_from_prev_street"] = float(
+                    pot_at_street_start.get(street, cur_pot) / max(pot_at_street_start.get(prev_st, cur_pot), 1.0)
+                )
+            else:
+                x["pot_growth_from_prev_street"] = 1.0
+
+            x["facing_bet_ratio_pot"] = float(to_call / max(cur_pot, 1.0)) if to_call > 0 else 0.0
+
+            # ── NEW: board texture + hole↔board relations ────────────────────
+            if len(board_ranks_vis) >= 3:
+                from collections import Counter
+
+                cnt = Counter(board_ranks_vis)
+                x["is_paired_board"] = int(any(v >= 2 for v in cnt.values()))
+                x["trips_on_board"] = int(any(v >= 3 for v in cnt.values()))
+                x["connectedness_idx"] = int(max(0, 14 - (max(board_ranks_vis) - min(board_ranks_vis))))
+
+                suit_cnt = Counter(board_suits_vis)
+                x["max_suit_count_board"] = int(max(suit_cnt.values())) if suit_cnt else 0
+
+                # flop-only monotone/two-tone
+                if len(board_sofar) == 3:
+                    uniq = len(set(board_suits_vis[:3]))
+                    x["is_monotone_flop"] = int(uniq == 1)
+                    x["two_tone_flop"] = int(uniq == 2)
+                else:
+                    x["is_monotone_flop"] = 0
+                    x["two_tone_flop"] = 0
+            else:
+                x.setdefault("is_paired_board", 0)
+                x.setdefault("trips_on_board", 0)
+                x.setdefault("connectedness_idx", 0)
+                x.setdefault("max_suit_count_board", 0)
+                x.setdefault("is_monotone_flop", 0)
+                x.setdefault("two_tone_flop", 0)
+
+            max_hole_rank = max(int(r1), int(r2))
+            hole_sorted = sorted([int(r1), int(r2)])
+            is_pocket_pair = int(r1 == r2)
+
+            if board_ranks_vis:
+                uniq_board = sorted(set(board_ranks_vis), reverse=True)
+                top_board = uniq_board[0]
+
+                x["overcard_count"] = int(sum(1 for br in set(board_ranks_vis) if br > max_hole_rank))
+                x["top_pair_flag"] = int(max_hole_rank == top_board)
+                x["second_pair_flag"] = int(len(uniq_board) >= 2 and max_hole_rank == uniq_board[1])
+                x["overpair_flag"] = int(is_pocket_pair and hole_sorted[0] > top_board)
+                x["board_hole_gap_top"] = int(uniq_board[0] - max_hole_rank)
+                x["board_hole_gap_mid"] = int((uniq_board[1] - max_hole_rank) if len(uniq_board) >= 2 else 0)
+            else:
+                x.setdefault("overcard_count", 0)
+                x.setdefault("top_pair_flag", 0)
+                x.setdefault("second_pair_flag", 0)
+                x.setdefault("overpair_flag", 0)
+                x.setdefault("board_hole_gap_top", 0)
+                x.setdefault("board_hole_gap_mid", 0)
+
+
+            # ── Existing: push/fold EV features + buckets (preflop) ───────────
+            if street == "preflop":
+                facing_allin = _facing_allin_preflop(pf_tracker, street)
+                x["facing_allin_preflop"] = int(facing_allin)
+
+                # Effective stack and price vs first shover (if any)
+                if first_shover_pid is not None:
+                    f_idx = int(first_shover_pid[1:]) - 1
+                    hero_committed = float(put_in[hero_tag])
+                    first_putin = float(put_in[first_shover_pid])
+                    eff_vs_first = min(hero_stack + hero_committed, float(stacks0[f_idx]))
+                    to_call_vs_first = max(0.0, first_putin - hero_committed)
+                    x["eff_stack_vs_first_shove_bb"] = float(eff_vs_first / max(bb_amt, 1))
+                    x["to_call_vs_first_shove_bb"] = float(to_call_vs_first / max(bb_amt, 1))
+
+
+
+                # Cheap equity proxies / blockers from your bucket function
+                x.update(_hand_buckets(r1, s1, r2, s2))
+
+            # ── Label (unchanged) ─────────────────────────────────────────────
+            label_str = (
+                _label_preflop(a_type, a_amt, bb_amt, int(hero_stack))
+                if street == "preflop"
+                else _label_postflop(a_type, a_amt, float(cur_pot), int(hero_stack))
+            )
+            if label_str not in ACTION_TO_ID:
+                continue
+
+            y = int(ACTION_TO_ID[label_str])
+
+            steps.append({
+                "x": x,
+                "y": y,
+                "phase": PHASE_IDS.get(street, -1),
+                "legal_mask": _legal_mask(street),
+            })
+
+            # Apply hero’s action to state
+            if a_type in ("cc", "cbr"):
+                amt = max(0, a_amt or 0)
+                put_in[hero_tag] += float(amt)
+                hero_stack = max(0.0, hero_stack - float(amt))
+                max_bet = max(max_bet, put_in[hero_tag])
+                cur_pot += float(amt)
+
+                # update aggressor tracker
+                if a_type == "cbr":
+                    last_agg_pid_this_street = hero_tag
+                    if street == "preflop" and pfr_pid is None:
+                        pfr_pid = hero_tag
+
+            if a_type == "f":
+                live.discard(hero_tag)
+
+            # reset opponent-actions counter since hero acted
+            opp_actions_since_last_hero = 0
+
+    return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": steps}
+
+
 from typing import Any, Dict, List, Optional, Tuple
 import itertools
 import numpy as np
@@ -532,6 +981,7 @@ def process_phh_zip(zip_path: str, name: str = "Pluribus") -> List[Dict[str, Any
                         k, v = line.strip().split('=', 1)
                         hand[k.strip()] = v.strip()
                 seq = extract_pluribus_actions_mamba(hand, name=name, file_path=fname)
+
                 if seq["steps"]:
                     sequences.append(seq)
             except Exception as e:
@@ -539,23 +989,6 @@ def process_phh_zip(zip_path: str, name: str = "Pluribus") -> List[Dict[str, Any
     return sequences
 
 
-# --- Simple PHH parser (string -> dict) ---------------------------------------
-import ast, zipfile
-
-def parse_phh_string(file_content: str) -> Dict[str, Any]:
-    data: Dict[str, Any] = {}
-    for line in file_content.splitlines():
-        if '=' in line:
-            key, val = line.strip().split('=', 1)
-            key = key.strip()
-            val = val.strip()
-            try:
-                data[key] = ast.literal_eval(val)
-            except Exception:
-                data[key] = val
-    return data
-
-# --- Zip processor wired to the new extractor ---------------------------------
 
 def process_phh_zip_mamba(
     zip_path: str,
@@ -595,6 +1028,8 @@ def process_phh_zip_mamba(
                     include_basic_scalars=include_basic_scalars,
                     file_path=name,
                 )
+                global merp
+                merp=seq.copy()
                 if seq.get('steps'):
                     sequences.append(seq)
             except Exception as e:
@@ -860,299 +1295,6 @@ def straight_draw_flag(hole_r1: int, hole_r2: int, board_ranks: list[int]) -> in
     return 0
 
 
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-def extract_pluribus_actions_mamba(
-    hand: Dict[str, Any],
-    *,
-    name: str = "Pluribus",
-    include_card_ints: bool = True,
-    include_basic_scalars: bool = True,
-    file_path: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Parse a hand dict into Mamba-style sequential steps with features and labels.
-    Adds preflop push/fold EV features using a 'functional all-in' definition:
-    any opponent action that makes the current price to continue >= SHOVE_THRESHOLD
-    of hero's remaining stack.
-    """
-
-    # ── Parse raw fields (kept as in your original) ────────────────────────────
-    actions: List[str] = eval(hand.get("actions", []))
-    players: List[str] = eval(hand.get("players", []))
-    blinds: List[int] = eval(hand.get("blinds_or_straddles", []))
-    stacks0: List[int] = eval(hand.get("starting_stacks", []))
-
-    n_players = len(players) if players else 6
-    sb_amt, bb_amt_inferred, ante_pp = infer_blinds_antes(blinds, n_players)
-    # Prefer inferred BB, fall back to literal in blinds, then 1
-    bb_amt = (blinds[1] if len(blinds) > 1 else 0) or bb_amt_inferred or 1
-
-    # Guard: hero must be seated
-    if not players or name not in players:
-        return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": []}
-
-    hero_tag = f"p{players.index(name) + 1}"
-    p_idx = players.index(name)
-
-    # ── State trackers ────────────────────────────────────────────────────────
-    put_in: Dict[str, float] = {f"p{i}": 0.0 for i in range(1, 7)}
-    cur_pot: float = float(sum(blinds))
-    hero_stack: float = float(stacks0[p_idx])
-
-    # Board reveal events to know current street by index
-    board_events = [(i, _split_cards("".join(a.split()[2:])))
-                    for i, a in enumerate(actions) if a.startswith("d db ")]
-
-    # Hero hole cards
-    hero_hand = next((a.split()[-1] for a in actions if a.startswith(f"d dh {hero_tag} ")), None)
-    if hero_hand is None:
-        return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": []}
-    r1, s1, r2, s2 = encode_hand(hero_hand)
-
-    steps: List[Dict[str, Any]] = []
-    max_bet = 0.0
-    current_phase = "preflop"
-    live: Set[str] = {f"p{i}" for i in range(1, 7)}
-
-    seat_order = [f"p{i}" for i in range(1, 7)]
-    hero_seat = seat_order.index(hero_tag)
-
-    # Keep your prior flags (can be useful elsewhere)
-    aggr_preflop_seen = False
-
-    # ── NEW: create preflop tracker ONCE + functional-all-in buffers ─────────
-    pf_tracker = PreflopAllInTracker()
-    shove_putins: List[float] = []             # total committed by each (functional) all-in actor
-    first_shover_pid: Optional[str] = None     # pid of first (functional) all-in
-
-    # ── Iterate through actions ───────────────────────────────────────────────
-    for idx, act in enumerate(actions):
-        board_sofar = _board_so_far(idx, board_events)
-        street = _phase_from_board_len(len(board_sofar))
-
-        # Street change → reset per-street put-ins/max_bet (your original logic)
-        if street != current_phase:
-            max_bet = 0.0
-            for k in put_in:
-                put_in[k] = 0.0
-            current_phase = street
-
-        # We only care about player actions starting with 'p'
-        if not act.startswith("p"):
-            continue
-
-        parts = act.split()
-        pid = parts[0]
-        a_type = parts[1] if len(parts) > 1 else ""
-        a_amt = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
-
-        # ── Opponent actions (update pot/put-in/tracker, detect functional all-in)
-        if pid != hero_tag:
-            if a_type in ("cc", "cbr"):
-                amt = max(0, a_amt or 0)
-                put_in[pid] += float(amt)
-                max_bet = max(max_bet, put_in[pid])
-                cur_pot += float(amt)
-
-                # update tracker for preflop all-in semantics you already had
-                update_preflop_allin_tracker(
-                    pf_tracker, pid=pid, a_type=a_type, a_amt=a_amt,
-                    put_in=put_in, stacks0=stacks0, street=street
-                )
-
-                # Mark first aggression on preflop
-                if street == "preflop" and a_type == "cbr" and not aggr_preflop_seen:
-                    aggr_preflop_seen = True
-
-                # ── NEW: functional all-in detection (≥ threshold of hero stack)
-                if street == "preflop" and a_type == "cbr":
-                    new_putin = float(put_in[pid])
-                    hero_already_putin = float(put_in[hero_tag])
-                    hero_remaining_stack_now = float(hero_stack)
-
-                    if _is_functional_allin_for_hero(
-                        new_putin_opp=new_putin,
-                        hero_already_putin=hero_already_putin,
-                        hero_remaining_stack=hero_remaining_stack_now,
-                        threshold=SHOVE_THRESHOLD,
-                    ):
-                        shove_putins.append(new_putin)
-                        if first_shover_pid is None:
-                            first_shover_pid = pid
-
-            # Folds: mark player dead
-            if a_type == "f":
-                live.discard(pid)
-
-        # ── Hero decision point: build features + label ───────────────────────
-        if pid == hero_tag:
-            already = float(put_in[hero_tag])
-            to_call = float(_to_call(max_bet, already))
-            pot_odds = (to_call / max(cur_pot + to_call, 1.0)) if to_call > 0 else 0.0
-            spr = (hero_stack / max(cur_pot, 1.0)) if cur_pot > 0 else 0.0
-            call_vs_pot = to_call / max(cur_pot, 1.0)
-
-            players_alive = len(live)
-            denom = float(sb_amt + bb_amt + ante_pp * players_alive)
-            m_ratio = float(hero_stack) / max(1.0, denom)
-
-            # Count players to act after hero this street
-            players_to_act_after = 0
-            for step_ahead in range(1, 6):
-                pid_after = seat_order[(hero_seat + step_ahead) % 6]
-                if pid_after in live:
-                    players_to_act_after += 1
-
-            # Simple 6-max pos bucket using seat index
-            hero_pos_bucket = 0 if p_idx in (0, 1) else (1 if p_idx in (2, 3) else 2)
-
-            # Encode board (optional)
-            board_ranks: List[int] = []
-            board_suits: List[int] = []
-            if include_card_ints:
-                for i in range(5):
-                    if i < len(board_sofar):
-                        rk, st = encode_card(board_sofar[i])
-                    else:
-                        rk, st = 0, -1
-                    board_ranks.append(int(rk))
-                    board_suits.append(int(st))
-
-            # Base feature dict
-            x: Dict[str, Any] = {"phase_id": PHASE_IDS.get(street, -1)}
-            # always define them
-            x.setdefault("facing_allin_preflop", 0)
-            #x.setdefault("n_allins_preflop", 0)
-            #x.setdefault("any_overcall_preflop", 0)
-            #x.setdefault("sum_allin_putin_bb", 0.0)
-            #x.setdefault("max_allin_putin_bb", 0.0)
-            #x.setdefault("eff_stack_vs_first_shove_bb", 0.0)
-            #x.setdefault("to_call_vs_first_shove_bb", 0.0)
-            #x.setdefault("players_behind_who_can_overcall", 0)
-            #x.setdefault("max_stack_behind_bb", 0.0)
-            #x.setdefault("sum_stack_behind_bb", 0.0)
-            #x.setdefault("pot_odds_vs_shove", 0.0)
-            #x.setdefault("req_eq_no_rake", 0.0)
-            #x.setdefault("req_eq_with_rake", 0.0)
-            x.setdefault("is_pair", 0)
-            x.setdefault("pair_rank_bucket", 0)
-            #x.setdefault("has_ace", 0)
-            x.setdefault("has_broadway", 0)
-            #x.setdefault("suited_connector_bucket", 0)
-            #x.setdefault("aces_blocker_combo", 0)
-
-            x.update({
-                "hero_pos_bucket": int(hero_pos_bucket),
-            })
-
-            if include_basic_scalars:
-                x.update({
-                    "spr": float(spr),
-                    "pot_odds": float(pot_odds),
-                    "opponents_live": int(len(live) - 1 if hero_tag in live else len(live)),
-                    "call_vs_pot": float(call_vs_pot),
-                    # add m_ratio if you later want it:
-                    # "m_ratio": float(m_ratio),
-                })
-
-            if include_card_ints:
-                x.update({
-                    "hole_r1": int(r1), "hole_s1": int(s1),
-                    "hole_r2": int(r2), "hole_s2": int(s2),
-                    "b1_r": board_ranks[0], "b1_s": board_suits[0],
-                    "b2_r": board_ranks[1], "b2_s": board_suits[1],
-                    "b3_r": board_ranks[2], "b3_s": board_suits[2],
-                    "b4_r": board_ranks[3], "b4_s": board_suits[3],
-                    "b5_r": board_ranks[4], "b5_s": board_suits[4],
-                })
-
-            # Hole-card booleans + draw hints (board-aware)
-            x["is_suited"] = is_suited_hole(r1, s1, r2, s2)
-            x["is_connected"] = is_connected_hole(r1, r2, allow_one_gap=True)
-
-            board_ranks_vis = [rk for rk in board_ranks if rk > 0]
-            board_suits_vis = [st for st in board_suits if st >= 0]
-            x["flush_draw"] = flush_draw_flag(s1, s2, board_suits_vis)
-            x["straight_draw"] = straight_draw_flag(r1, r2, board_ranks_vis)
-
-            x["hand_strength_chen"] = float(chen_strength_2c(hero_hand)) if hero_hand else 0.0
-
-            # ── NEW: push/fold EV features (only preflop) ─────────────────────
-            if street == "preflop":
-                # Facing all-in per your existing tracker semantics (works fine with functional too)
-                facing_allin = _facing_allin_preflop(pf_tracker, street)
-                x["facing_allin_preflop"] = int(facing_allin)
-
-
-                # Multiway all-in context
-
-                # Effective stack and price vs first shover
-                eff_vs_first, to_call_vs_first = 0.0, 0.0
-                if first_shover_pid is not None:
-                    f_idx = int(first_shover_pid[1:]) - 1
-                    hero_committed = float(put_in[hero_tag])
-                    first_putin = float(put_in[first_shover_pid])
-                    # total effective between hero and first shover
-                    eff_vs_first = min(hero_stack + hero_committed, float(stacks0[f_idx]))
-                    to_call_vs_first = max(0.0, first_putin - hero_committed)
-
-
-                # Players behind who can still act (and their stacks at risk)
-                players_behind: List[str] = []
-                for step_ahead in range(1, 6):
-                    pid_after = seat_order[(hero_seat + step_ahead) % 6]
-                    if pid_after in live and pid_after != hero_tag:
-                        players_behind.append(pid_after)
-                stacks_behind: List[int] = []
-                for p in players_behind:
-                    idx = pid_to_idx.get(p, None)
-                    base_stack = int(stacks0[idx]) if (idx is not None and idx < len(stacks0)) else 0
-                    committed  = int(put_in.get(p, 0))
-                    stacks_behind.append(max(0, base_stack - committed))
-
-
-                # Current price and required equity (with/without rake)
-                already_now = float(put_in[hero_tag])
-                to_call_now = float(_to_call(max_bet, already_now))
-                pot_before_call = float(cur_pot)
-
-
-                # Cheap equity proxies / blockers
-                x.update(_hand_buckets(r1, s1, r2, s2))
-
-            # Label as in your original code
-            label_str = (
-                _label_preflop(a_type, a_amt, bb_amt, int(hero_stack))
-                if street == "preflop"
-                else _label_postflop(a_type, a_amt, float(cur_pot), int(hero_stack))
-            )
-            if label_str not in ACTION_TO_ID:
-                # skip steps you don't want to train on (e.g., unknown)
-                continue
-
-            y = int(ACTION_TO_ID[label_str])
-
-            # Append step
-            steps.append({
-                "x": x,
-                "y": y,
-                "phase": PHASE_IDS.get(street, -1),
-                "legal_mask": _legal_mask(street)
-            })
-
-            # Apply hero’s action to state
-            if a_type in ("cc", "cbr"):
-                amt = max(0, a_amt or 0)
-                put_in[hero_tag] += float(amt)
-                hero_stack = max(0.0, hero_stack - float(amt))
-                max_bet = max(max_bet, put_in[hero_tag])
-                cur_pot += float(amt)
-            if a_type == "f":
-                live.discard(hero_tag)
-
-    return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": steps}
-
 from itertools import permutations
 from copy import deepcopy
 
@@ -1302,41 +1444,148 @@ def _hand_buckets(r1, s1, r2, s2):
 def _dict_list_to_array(dicts: List[Dict[str, Any]], keys: List[str]) -> np.ndarray:
     return np.asarray([[d[k] for k in keys] for d in dicts], dtype=float)
 
-def collate_mamba_batch(hand_seqs: List[Dict[str, Any]], feature_keys: Optional[List[str]] = None) -> Dict[str, Any]:
+from typing import Dict, List, Any, Optional, Set
+
+def collate_mamba_batch(
+    hand_seqs: List[Dict[str, Any]],
+    feature_keys: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Option B-friendly collate:
+    - Do NOT compute intersection across all steps.
+    - If feature_keys is None, derive schema from the first non-empty step.
+    - Fill missing keys with 0.0 (robustness) while keeping schema stable.
+    """
     if not hand_seqs:
-        return {"X": np.zeros((0, 0, 0), dtype=np.float32),
-                "y": np.zeros((0, 0), dtype=np.int64),
-                "mask": np.zeros((0, 0), dtype=np.uint8),
-                "legal": np.zeros((0, 0, NUM_ACTIONS), dtype=np.uint8),
-                "hand_ids": []}
+        return {
+            "X": np.zeros((0, 0, 0), dtype=np.float32),
+            "y": np.zeros((0, 0), dtype=np.int64),
+            "mask": np.zeros((0, 0), dtype=np.uint8),
+            "legal": np.zeros((0, 0, NUM_ACTIONS), dtype=np.uint8),
+            "hand_ids": [],
+            "feature_keys": [],
+        }
+
+    # Derive feature schema once (Option B assumes all steps share keys)
+    import hashlib
+    from collections import Counter
+
+    # assert feature_keys is None, "it not None"   # <-- keep if you want hard guarantee
+    print(f"[collate] feature_keys arg is None? {feature_keys is None}")
+
     if feature_keys is None:
-        # Derive keys that *every* step has (safe intersection)
-        common_keys = None
-        for hand in hand_seqs:
-            for step in hand["steps"]:
-                ks = set(step["x"].keys())
-                common_keys = ks if common_keys is None else (common_keys & ks)
-        feature_keys = sorted(list(common_keys))
+        n_hands = len(hand_seqs)
+        total_steps = sum(len(h.get("steps", [])) for h in hand_seqs)
+        print(f"[collate] n_hands={n_hands} total_steps={total_steps}")
+
+        first_x = None
+        first_src = None  # (hand_idx, step_idx, hand_id)
+
+        # Collect keyset stats across the batch (this is *very* informative)
+        keyset_counter = Counter()
+        max_keyset = set()
+        max_src = None
+
+        for hi, hand in enumerate(hand_seqs):
+            steps = hand.get("steps", [])
+            hid = hand.get("hand_id", str(hi))
+
+            for si, step in enumerate(steps):
+                x = step.get("x", None)
+                if not isinstance(x, dict) or not x:
+                    continue
+
+                ks = frozenset(x.keys())
+                keyset_counter[ks] += 1
+
+                if len(ks) > len(max_keyset):
+                    max_keyset = set(ks)
+                    max_src = (hi, si, hid)
+
+                if first_x is None:
+                    first_x = x
+                    first_src = (hi, si, hid)
+
+            # keep scanning all steps for stats; do NOT break early
+
+        print(f"[collate] distinct_keysets={len(keyset_counter)}")
+        if keyset_counter:
+            most_common = keyset_counter.most_common(3)
+            print("[collate] top keysets (count, n_keys):",
+                  [(c, len(ks)) for ks, c in most_common])
+
+        if max_src is not None:
+            print(f"[collate] max_keyset_n={len(max_keyset)} from hand={max_src[2]} (hi={max_src[0]}, si={max_src[1]})")
+
+        if first_x is None:
+            print("[collate] first_x is None -> no non-empty step['x'] found in batch")
+            return {
+                "X": np.zeros((len(hand_seqs), 0, 0), dtype=np.float32),
+                "y": np.zeros((len(hand_seqs), 0), dtype=np.int64),
+                "mask": np.zeros((len(hand_seqs), 0), dtype=np.uint8),
+                "legal": np.zeros((len(hand_seqs), 0, NUM_ACTIONS), dtype=np.uint8),
+                "hand_ids": [h.get("hand_id", str(i)) for i, h in enumerate(hand_seqs)],
+                "feature_keys": [],
+            }
+
+        # IMPORTANT: show what first_x actually contains
+        first_keys = list(first_x.keys())
+        first_keys_sorted = sorted(first_keys)
+        print(f"[collate] first_x chosen from hand={first_src[2]} (hi={first_src[0]}, si={first_src[1]}), n_keys={len(first_keys_sorted)}")
+        print("[collate] first_x keys sample:", first_keys_sorted[:40], ("..." if len(first_keys_sorted) > 40 else ""))
+
+        # OPTIONAL: compare first_x keyset to the maximum keyset (if they differ, you're picking a smaller schema)
+        if max_src is not None:
+            missing_from_first = sorted(list(max_keyset - set(first_keys_sorted)))
+            extra_in_first = sorted(list(set(first_keys_sorted) - max_keyset))
+            if missing_from_first:
+                print(f"[collate] WARNING: first_x is missing {len(missing_from_first)} keys that exist elsewhere.")
+                print("[collate] missing_from_first sample:", missing_from_first[:40], ("..." if len(missing_from_first) > 40 else ""))
+            if extra_in_first:
+                print(f"[collate] NOTE: first_x has {len(extra_in_first)} keys not in max_keyset (unexpected).")
+                print("[collate] extra_in_first sample:", extra_in_first[:40], ("..." if len(extra_in_first) > 40 else ""))
+
+        # If you want the schema to be the *largest observed* in the batch during debugging:
+        # feature_keys = sorted(max_keyset)  # <-- debugging choice
+        # Otherwise keep the intended behavior:
+        feature_keys = sorted(first_x.keys())
+
+    # Quick fingerprint to track schema changes across runs/batches
+    fp = hashlib.md5(("|".join(feature_keys)).encode("utf-8")).hexdigest()[:10]
+    print(f"[collate] feature_keys derived n={len(feature_keys)} fp={fp}")
+
+
     B = len(hand_seqs)
-    lengths = [len(h["steps"]) for h in hand_seqs]
+    lengths = [len(h.get("steps", [])) for h in hand_seqs]
     T_max = max(lengths) if lengths else 0
     F = len(feature_keys)
+
     X = np.zeros((B, T_max, F), dtype=np.float32)
     y = np.zeros((B, T_max), dtype=np.int64)
     mask = np.zeros((B, T_max), dtype=np.uint8)
     legal = np.zeros((B, T_max, NUM_ACTIONS), dtype=np.uint8)
-    hand_ids = []
+    hand_ids: List[str] = []
+
     for b, hand_seq in enumerate(hand_seqs):
         hand_ids.append(hand_seq.get("hand_id", str(b)))
-        steps = hand_seq["steps"]
-        for t, step in enumerate(steps):
-            if t >= T_max:
-                break
-            X[b, t, :] = _dict_list_to_array([step["x"]], feature_keys)[0]
-            y[b, t] = int(step["y"])
+        steps = hand_seq.get("steps", [])
+        for t, step in enumerate(steps[:T_max]):
+            x = step.get("x", {})
+            X[b, t, :] = np.asarray([float(x.get(k, 0.0)) for k in feature_keys], dtype=np.float32)
+            y[b, t] = int(step.get("y", 0))
             mask[b, t] = 1
-            legal[b, t, :] = np.asarray(step["legal_mask"], dtype=np.uint8)
-    return {"X": X, "y": y, "mask": mask, "legal": legal, "hand_ids": hand_ids, "feature_keys": feature_keys}
+            legal_mask = step.get("legal_mask", None)
+            if legal_mask is not None:
+                legal[b, t, :] = np.asarray(legal_mask, dtype=np.uint8)
+
+    return {
+        "X": X,
+        "y": y,
+        "mask": mask,
+        "legal": legal,
+        "hand_ids": hand_ids,
+        "feature_keys": feature_keys,
+    }
 
 
 
