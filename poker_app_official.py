@@ -2822,11 +2822,11 @@ with st.sidebar:
     if "reveal_bot_cards" not in st.session_state:
         st.session_state.reveal_bot_cards = bool(getattr(game, "reveal_bot_hole_cards", False))
 
-    #st.session_state.reveal_bot_cards = st.checkbox(
-    #    "Reveal bot cards after hand",
-    #    value=st.session_state.reveal_bot_cards,
-    #    key="sidebar_reveal_bot_cards",
-    #)
+    st.session_state.reveal_bot_cards = st.checkbox(
+        "Reveal bot cards after hand",
+        value=st.session_state.reveal_bot_cards,
+        key="sidebar_reveal_bot_cards",
+    )
     game.reveal_bot_hole_cards = st.session_state.reveal_bot_cards
 
 
