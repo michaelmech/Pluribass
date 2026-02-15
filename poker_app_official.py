@@ -22,7 +22,7 @@ import pandas as pd
 import lightgbm as lgb
 from datetime import datetime
 
-MAMBA_CKPT = "augment_poker_transformer.pt"  # your saved file
+MAMBA_CKPT = "poker_transformer_grokfast_class_weighted_classifier.pt"  # your saved file
 device = torch.device("cpu")  # per your preference
 #model, normalizer, feature_keys, _ = load_poker_mamba(MAMBA_CKPT, device=device)
 model, normalizer, _, _ = load_poker_transformer(MAMBA_CKPT, device=device)
