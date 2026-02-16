@@ -1,0 +1,238 @@
+{
+    "action_index_in_street": [
+        0.0,
+        6.0
+    ],
+    "aggression_switched_from_prev_street": [
+        0.0,
+        1.0
+    ],
+    "b1_r": [
+        0.0,
+        14.0
+    ],
+    "b1_s": [
+        -1.0,
+        3.0
+    ],
+    "b2_r": [
+        0.0,
+        14.0
+    ],
+    "b2_s": [
+        -1.0,
+        3.0
+    ],
+    "b3_r": [
+        0.0,
+        14.0
+    ],
+    "b3_s": [
+        -1.0,
+        3.0
+    ],
+    "b4_r": [
+        0.0,
+        14.0
+    ],
+    "b4_s": [
+        -1.0,
+        3.0
+    ],
+    "b5_r": [
+        0.0,
+        14.0
+    ],
+    "b5_s": [
+        -1.0,
+        3.0
+    ],
+    "board_hole_gap_mid": [
+        -12.0,
+        11.0
+    ],
+    "board_hole_gap_top": [
+        -11.0,
+        12.0
+    ],
+    "call_vs_pot": [
+        0.0,
+        0.9368420839309692
+    ],
+    "calls_this_street": [
+        0.0,
+        5.0
+    ],
+    "committed_30pct_plus": [
+        0.0,
+        1.0
+    ],
+    "connectedness_idx": [
+        0.0,
+        14.0
+    ],
+    "eff_stack_vs_first_shove_bb": [
+        0.0,
+        100.0
+    ],
+    "facing_allin_preflop": [
+        0.0,
+        1.0
+    ],
+    "facing_bet": [
+        0.0,
+        1.0
+    ],
+    "facing_bet_ratio_pot": [
+        0.0,
+        0.9368420839309692
+    ],
+    "facing_cbet": [
+        0.0,
+        1.0
+    ],
+    "facing_raise": [
+        0.0,
+        1.0
+    ],
+    "flush_draw": [
+        0.0,
+        1.0
+    ],
+    "hand_strength_chen": [
+        0.0,
+        17.0
+    ],
+    "has_broadway": [
+        0.0,
+        1.0
+    ],
+    "has_initiative_prev_street": [
+        0.0,
+        1.0
+    ],
+    "hero_pos_bucket": [
+        0.0,
+        2.0
+    ],
+    "hole_r1": [
+        0.0,
+        14.0
+    ],
+    "hole_r2": [
+        0.0,
+        14.0
+    ],
+    "hole_s1": [
+        0.0,
+        3.0
+    ],
+    "hole_s2": [
+        0.0,
+        3.0
+    ],
+    "is_cbet_spot": [
+        0.0,
+        1.0
+    ],
+    "is_connected": [
+        0.0,
+        1.0
+    ],
+    "is_monotone_flop": [
+        0.0,
+        1.0
+    ],
+    "is_pair": [
+        0.0,
+        1.0
+    ],
+    "is_paired_board": [
+        0.0,
+        1.0
+    ],
+    "is_suited": [
+        0.0,
+        1.0
+    ],
+    "max_suit_count_board": [
+        0.0,
+        5.0
+    ],
+    "opp_actions_since_last_hero": [
+        0.0,
+        5.0
+    ],
+    "opponents_live": [
+        0.0,
+        5.0
+    ],
+    "overcard_count": [
+        0.0,
+        5.0
+    ],
+    "overpair_flag": [
+        0.0,
+        1.0
+    ],
+    "pair_rank_bucket": [
+        0.0,
+        2.0
+    ],
+    "pct_invested_from_start": [
+        0.0,
+        1.0
+    ],
+    "phase_id": [
+        0.0,
+        3.0
+    ],
+    "players_to_act_behind": [
+        0.0,
+        5.0
+    ],
+    "pot_growth_from_prev_street": [
+        0.0,
+        30.33333396911621
+    ],
+    "pot_odds": [
+        0.0,
+        0.4836956560611725
+    ],
+    "raises_this_street": [
+        0.0,
+        5.0
+    ],
+    "second_pair_flag": [
+        0.0,
+        1.0
+    ],
+    "spr": [
+        0.0,
+        66.66666412353516
+    ],
+    "straight_draw": [
+        0.0,
+        1.0
+    ],
+    "street_aggr_factor": [
+        0.0,
+        4.0
+    ],
+    "to_call_vs_first_shove_bb": [
+        0.0,
+        102.0
+    ],
+    "top_pair_flag": [
+        0.0,
+        1.0
+    ],
+    "trips_on_board": [
+        0.0,
+        1.0
+    ],
+    "two_tone_flop": [
+        0.0,
+        1.0
+    ]
+}
