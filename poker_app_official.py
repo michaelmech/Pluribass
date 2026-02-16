@@ -1137,6 +1137,15 @@ def state_to_transformer_seq_and_mask(
         x_dict = step["x"]
         X_np[t] = [x_dict.get(k, 0.0) for k in keys]
 
+
+    X_np = clip_seq_array(
+                X_np,
+                    keys,
+                    bounds_by_feature_key,
+                    feature_key,
+                    sentinel=-999,
+                )
+
     X_seq = torch.from_numpy(X_np)                       # [T,F]
     key_padding_mask = torch.zeros((T,), dtype=torch.bool)  # no PAD since we’re not padding
 
@@ -1145,6 +1154,42 @@ def state_to_transformer_seq_and_mask(
 
     return X_seq, key_padding_mask, legal_last, keys
 
+with open("transformer_bounds.json", "r") as f:
+    bounds_by_feature_key: Dict[str, Dict[str, int]] = json.load(f)
+
+def clip_seq_array(X, feature_keys, bounds_by_feature_key, feature_key, *, sentinel=None):
+    """
+    X: np.ndarray [T,F] or torch.Tensor [T,F]
+    bounds_by_feature_key[feature_key]: {feature_name: (min,max)}
+    """
+    bounds = bounds_by_feature_key.get(feature_key, {})
+    is_torch = torch.is_tensor(X)
+
+    for j, name in enumerate(feature_keys):
+        if name not in bounds:
+            continue
+        mn, mx = bounds[name]
+
+        if is_torch:
+            col = X[:, j]
+            if sentinel is not None:
+                m = col != sentinel
+                col[m] = torch.clamp(col[m], mn, mx)
+            else:
+                X[:, j] = torch.clamp(col, mn, mx)
+        else:
+            col = X[:, j]
+            if sentinel is not None:
+                m = col != sentinel
+                col[m] = np.clip(col[m], mn, mx)
+            else:
+                X[:, j] = np.clip(col, mn, mx)
+
+    return X
+
+# In your state_to_transformer_seq_and_mask, right after X_np is built:
+# X_np = clip_seq_array(X_np, keys, bounds_by_feature_key, feature_key, sentinel=-999)
+# X_seq = torch.from_numpy(X_np)
 
 
 
