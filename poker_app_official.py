@@ -2101,8 +2101,8 @@ DEFAULT_CKPT = "augment_poker_transformer.pt"
 # - state_to_df(gs, seat_idx)  # if using tabular raise model
 
 #@with_temperature_by_elims(temp_at_start=0.3, temp_at_end=0.6, end_players=2,preflop_temperature=0)
-#@with_commitment_rule(0.6)
-@with_short_stack_nash_equilibrium()
+@with_commitment_rule(0.6)
+#@with_short_stack_nash_equilibrium()
 class TransformerBot:
     """
     Poker bot that chooses among {fold, call, raise} using a saved Transformer model.
