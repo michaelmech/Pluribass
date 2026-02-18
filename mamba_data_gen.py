@@ -722,12 +722,14 @@ def extract_pluribus_actions_mamba(
                         hero_remaining_stack=hero_remaining_stack_now,
                         threshold=SHOVE_THRESHOLD,
                     ):
+
                         shove_putins.append(new_putin)
                         if first_shover_pid is None:
                             first_shover_pid = pid
 
             if a_type == "f":
                 live.discard(pid)
+
 
         # ── Hero decision point: build features + label ───────────────────────
         if pid == hero_tag:
@@ -779,6 +781,7 @@ def extract_pluribus_actions_mamba(
 
             # position
             x["hero_pos_bucket"] = int(hero_pos_bucket)
+            x["eff_bb"] = float(hero_stack / max(bb_amt, 1.0))
 
             if include_basic_scalars:
                 x.update({
@@ -786,7 +789,7 @@ def extract_pluribus_actions_mamba(
                     "pot_odds": float(pot_odds),
                     "opponents_live": int(len(live) - 1 if hero_tag in live else len(live)),
                     "call_vs_pot": float(call_vs_pot),
-                    # "m_ratio": float(m_ratio),
+                     "m_ratio": float(m_ratio),
                 })
 
             if include_card_ints:
@@ -1531,6 +1534,8 @@ def collate_mamba_batch(
         # IMPORTANT: show what first_x actually contains
         first_keys = list(first_x.keys())
         first_keys_sorted = sorted(first_keys)
+
+
         print(f"[collate] first_x chosen from hand={first_src[2]} (hi={first_src[0]}, si={first_src[1]}), n_keys={len(first_keys_sorted)}")
         print("[collate] first_x keys sample:", first_keys_sorted[:40], ("..." if len(first_keys_sorted) > 40 else ""))
 
@@ -1639,7 +1644,6 @@ def load_poker_transformer(ckpt_path: str, device: Optional[torch.device] = None
     return model, normalizer, feature_keys, model_cfg_obj
 
 from poker_transformer import Normalizer,PokerTransformerClassifier
-
 
 # --- Single-step inference (Transformer) ---
 @torch.no_grad()
