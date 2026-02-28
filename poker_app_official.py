@@ -1194,6 +1194,7 @@ def clip_seq_array(X, feature_keys, bounds_by_feature_key, feature_key, *, senti
 
 
 def compute_legal_mask(gs, idx):
+    '''
     hero = gs.players[idx]
     to_call = max(gs.current_bet - hero.bet_this_street, 0)
     stack = hero.stack
@@ -1213,6 +1214,8 @@ def compute_legal_mask(gs, idx):
         return [0, 1 if to_call == 0 else 0, 0]
 
     return [fold_legal, call_legal, raise_legal]
+    '''
+    return [1,1,1]
 
 
 FOLD_MODEL_PATH = os.getenv("FOLD_MODEL_PATH", "folding_model_aggr.pkl")
