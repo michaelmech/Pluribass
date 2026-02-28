@@ -3,6 +3,166 @@
         0.0,
         6.0
     ],
+    "adv_action_density": [
+        0.0,
+        3.0
+    ],
+    "adv_board_best_runlen": [
+        0.0,
+        5.0
+    ],
+    "adv_board_broadway_cnt": [
+        0.0,
+        4.0
+    ],
+    "adv_board_high_rank": [
+        0.0,
+        14.0
+    ],
+    "adv_board_max_suit": [
+        0.0,
+        5.0
+    ],
+    "adv_board_spread": [
+        0.0,
+        12.0
+    ],
+    "adv_board_wetness": [
+        0.0,
+        0.7149999737739563
+    ],
+    "adv_board_wetness_bucket": [
+        0.0,
+        3.0
+    ],
+    "adv_call_bb_bucket": [
+        0.0,
+        7.0
+    ],
+    "adv_call_pressure": [
+        0.0,
+        3.0
+    ],
+    "adv_call_vs_pot_bucket": [
+        0.0,
+        5.0
+    ],
+    "adv_commit_50pct_plus_if_call": [
+        0.0,
+        1.0
+    ],
+    "adv_commit_frac_if_call_from_start": [
+        0.0,
+        1.0
+    ],
+    "adv_dist_to_last_agg_live": [
+        0.0,
+        3.0
+    ],
+    "adv_dist_to_pfr_live": [
+        0.0,
+        3.0
+    ],
+    "adv_heads_up": [
+        0.0,
+        1.0
+    ],
+    "adv_hero_facing_action_with_initiative": [
+        0.0,
+        1.0
+    ],
+    "adv_in_position_vs_last_agg": [
+        0.0,
+        1.0
+    ],
+    "adv_in_position_vs_pfr": [
+        0.0,
+        1.0
+    ],
+    "adv_log_call_bb": [
+        0.0,
+        4.634728908538818
+    ],
+    "adv_log_pot_bb": [
+        0.0,
+        5.435815811157227
+    ],
+    "adv_log_stack_bb": [
+        0.0,
+        4.6151204109191895
+    ],
+    "adv_multiway": [
+        0.0,
+        1.0
+    ],
+    "adv_newcard_increases_flushiness": [
+        0.0,
+        1.0
+    ],
+    "adv_newcard_increases_straightiness": [
+        0.0,
+        1.0
+    ],
+    "adv_newcard_pairs_board": [
+        0.0,
+        1.0
+    ],
+    "adv_opp_actions_since_last_hero": [
+        0.0,
+        5.0
+    ],
+    "adv_pfr_is_current_aggressor": [
+        0.0,
+        1.0
+    ],
+    "adv_players_alive": [
+        0.0,
+        6.0
+    ],
+    "adv_players_behind_bucket": [
+        0.0,
+        5.0
+    ],
+    "adv_players_to_act_behind": [
+        0.0,
+        5.0
+    ],
+    "adv_pot_after_call_bb": [
+        0.0,
+        248.47999572753906
+    ],
+    "adv_pot_bb": [
+        0.0,
+        228.47999572753906
+    ],
+    "adv_raise_pressure": [
+        0.0,
+        5.0
+    ],
+    "adv_spr_after_call": [
+        0.0,
+        66.66666412353516
+    ],
+    "adv_spr_bucket": [
+        0.0,
+        6.0
+    ],
+    "adv_stack_after_call_bb": [
+        0.0,
+        100.0
+    ],
+    "adv_stack_bb_bucket": [
+        0.0,
+        6.0
+    ],
+    "adv_to_call_bb": [
+        0.0,
+        102.0
+    ],
+    "adv_to_call_stack_frac": [
+        0.0,
+        1.3903121948242188
+    ],
     "aggression_switched_from_prev_street": [
         0.0,
         1.0
