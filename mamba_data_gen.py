@@ -550,6 +550,253 @@ from typing import Any, Dict, List, Optional, Set
 # - PHASE_IDS
 
 
+import math
+from typing import Any, Dict, List, Optional, Set
+
+def _augment_pluribus_step_features(
+    x: Dict[str, Any],
+    *,
+    street: str,
+    hero_tag: str,
+    hero_seat: int,
+    seat_order: List[str],
+    live: Set[str],
+    acted_pids_this_street: Set[str],
+    last_agg_pid_this_street: Optional[str],
+    pfr_pid: Optional[str],
+    raises_this_street: int,
+    calls_this_street: int,
+    players_to_act_behind: int,
+    opp_actions_since_last_hero: int,
+    hero_stack: float,
+    hero_stack0: float,
+    cur_pot: float,
+    to_call: float,
+    bb_amt: float,
+    board_sofar: List[str],
+) -> None:
+    """
+    Mutates x in-place, adding extra features meant for sequence models.
+    No time deltas; only state-at-node and street-local counters.
+    """
+
+    def _safe_div(a: float, b: float, default: float = 0.0) -> float:
+        return a / b if b and b > 0 else default
+
+    def _log1p_bb(chips: float) -> float:
+        return math.log1p(max(0.0, chips) / max(1.0, bb_amt))
+
+    def _bucket(val: float, edges: List[float]) -> int:
+        # returns 0..len(edges)
+        for i, e in enumerate(edges):
+            if val <= e:
+                return i
+        return len(edges)
+
+    players_alive = len(live)
+    is_postflop = int(street in ("flop", "turn", "river"))
+    is_heads_up = int(players_alive == 2)
+    is_multiway = int(players_alive >= 3)
+
+    pot = float(cur_pot)
+    stack = float(hero_stack)
+    call = float(to_call)
+
+    pot_bb = _safe_div(pot, bb_amt)
+    call_bb = _safe_div(call, bb_amt)
+    stack_bb = _safe_div(stack, bb_amt)
+
+    pot_after_call = pot + call
+    stack_after_call = max(0.0, stack - call)
+
+    # --- Pricing / commitment / leverage ---
+    x["adv_to_call_bb"] = float(call_bb)
+    x["adv_to_call_stack_frac"] = float(_safe_div(call, stack, 0.0))
+    x["adv_pot_bb"] = float(pot_bb)
+    x["adv_pot_after_call_bb"] = float(_safe_div(pot_after_call, bb_amt))
+    x["adv_stack_after_call_bb"] = float(_safe_div(stack_after_call, bb_amt))
+
+    x["adv_spr_after_call"] = float(_safe_div(stack_after_call, pot_after_call, 0.0))
+    x["adv_commit_frac_if_call_from_start"] = float(
+        _safe_div((hero_stack0 - stack_after_call), max(hero_stack0, 1.0), 0.0)
+    )
+    x["adv_commit_50pct_plus_if_call"] = int(x["adv_commit_frac_if_call_from_start"] >= 0.50)
+
+    # Buckets that play nicely with embeddings (optional but useful)
+    x["adv_call_vs_pot_bucket"] = int(_bucket(_safe_div(call, max(pot, 1.0)), [0.05, 0.10, 0.25, 0.50, 0.75, 1.00, 1.50, 2.00]))
+    x["adv_spr_bucket"] = int(_bucket(_safe_div(stack, max(pot, 1.0)), [0.5, 1, 2, 4, 8, 16]))
+    x["adv_stack_bb_bucket"] = int(_bucket(stack_bb, [5, 10, 20, 30, 50, 80, 120]))
+    x["adv_call_bb_bucket"] = int(_bucket(call_bb, [1, 2, 4, 8, 12, 20, 40]))
+
+    # --- Table state / density ---
+    x["adv_players_alive"] = int(players_alive)
+    x["adv_heads_up"] = int(is_heads_up)
+    x["adv_multiway"] = int(is_multiway)
+    x["adv_players_to_act_behind"] = int(players_to_act_behind)  # redundant w/ your key, but keep under a prefix
+    x["adv_players_behind_bucket"] = int(_bucket(float(players_to_act_behind), [0, 1, 2, 3, 4]))
+
+    # How deep into the street we are relative to remaining players (sequence models like this)
+    acted_count = len(acted_pids_this_street)
+    x["adv_action_density"] = float(_safe_div(acted_count, max(players_alive, 1), 0.0))
+    x["adv_opp_actions_since_last_hero"] = int(opp_actions_since_last_hero)  # prefixed version
+
+    # Aggression pressure normalized
+    x["adv_raise_pressure"] = float(_safe_div(raises_this_street, max(players_alive - 1, 1), 0.0))
+    x["adv_call_pressure"] = float(_safe_div(calls_this_street, max(players_alive - 1, 1), 0.0))
+
+    # --- Relative position vs aggressor / PFR (uses your seat_order convention) ---
+    def _dist_forward(a: str, b: str, order: List[str]) -> int:
+        # steps moving forward in order from a -> b
+        ia, ib = order.index(a), order.index(b)
+        return (ib - ia) % len(order)
+
+    # Build live order list (preserves your seat ordering but removes folded players)
+    live_order = [p for p in seat_order if p in live]
+    hero_live_idx = live_order.index(hero_tag) if hero_tag in live_order else 0
+
+    if last_agg_pid_this_street and last_agg_pid_this_street in live_order:
+        agg_live_idx = live_order.index(last_agg_pid_this_street)
+        dist = (hero_live_idx - agg_live_idx) % len(live_order)  # hero “after” agg if dist > 0
+        x["adv_dist_to_last_agg_live"] = int(dist)
+        x["adv_in_position_vs_last_agg"] = int(dist > 0)  # crude but often helpful
+    else:
+        x["adv_dist_to_last_agg_live"] = 0
+        x["adv_in_position_vs_last_agg"] = 0
+
+    if pfr_pid and pfr_pid in live_order:
+        pfr_live_idx = live_order.index(pfr_pid)
+        dist = (hero_live_idx - pfr_live_idx) % len(live_order)
+        x["adv_dist_to_pfr_live"] = int(dist)
+        x["adv_in_position_vs_pfr"] = int(dist > 0)
+    else:
+        x["adv_dist_to_pfr_live"] = 0
+        x["adv_in_position_vs_pfr"] = 0
+
+    # --- Board texture: extra “wetness” signals (cheap + stable) ---
+    # Assumes board_sofar is list like ["As","Td","7h",...]
+    # If your encode_card uses different mapping, this stays independent.
+    def _rank_int(card: str) -> int:
+        r = card[0]
+        return {"2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14}.get(r, 0)
+
+    def _suit_char(card: str) -> str:
+        return card[1] if len(card) > 1 else "?"
+
+    ranks = sorted({ _rank_int(c) for c in board_sofar if c }, reverse=True)
+    suits = [ _suit_char(c) for c in board_sofar if c ]
+
+    if len(ranks) >= 3:
+        rmax, rmin = max(ranks), min(ranks)
+        spread = rmax - rmin
+
+        # max consecutive run length on board ranks (straightiness proxy)
+        rr = sorted(set(ranks))
+        best_run = 1
+        run = 1
+        for i in range(1, len(rr)):
+            if rr[i] == rr[i-1] + 1:
+                run += 1
+                best_run = max(best_run, run)
+            else:
+                run = 1
+
+        # suit concentration (flushiness proxy)
+        suit_counts = {}
+        for s in suits:
+            suit_counts[s] = suit_counts.get(s, 0) + 1
+        max_suit = max(suit_counts.values()) if suit_counts else 0
+
+        # pairedness proxy
+        # (since ranks is a set above, check pairing from original ranks list)
+        raw_ranks = [_rank_int(c) for c in board_sofar if c]
+        freq = {}
+        for r in raw_ranks:
+            freq[r] = freq.get(r, 0) + 1
+        is_paired = int(any(v >= 2 for v in freq.values()))
+
+        broadway_cnt = sum(1 for r in set(raw_ranks) if r >= 10)
+
+        # Wetness heuristic in [0,1]
+        flushiness = _safe_div(max_suit, 5, 0.0)
+        straightiness = _safe_div(max(0, best_run - 1), 4, 0.0)
+        pairedness = 1.0 if is_paired else 0.0
+        # Lower spread tends to be “more connected” (wetter)
+        connectedness = 1.0 - min(1.0, _safe_div(spread, 12, 0.0))
+
+        wet = 0.40 * flushiness + 0.35 * straightiness + 0.15 * connectedness + 0.10 * pairedness
+        wet = max(0.0, min(1.0, wet))
+
+        x["adv_board_high_rank"] = int(rmax)
+        x["adv_board_spread"] = int(spread)
+        x["adv_board_best_runlen"] = int(best_run)
+        x["adv_board_max_suit"] = int(max_suit)
+        x["adv_board_broadway_cnt"] = int(broadway_cnt)
+        x["adv_board_wetness"] = float(wet)
+        x["adv_board_wetness_bucket"] = int(_bucket(wet, [0.20, 0.40, 0.60, 0.80]))
+
+        # “Dynamic” flags: did the newest card increase threat?
+        if len(board_sofar) in (4, 5):
+            new_card = board_sofar[-1]
+            new_r = _rank_int(new_card)
+            new_s = _suit_char(new_card)
+            prev_cards = board_sofar[:-1]
+            prev_ranks = [_rank_int(c) for c in prev_cards]
+            prev_suits = [_suit_char(c) for c in prev_cards]
+
+            # New card pairs the board
+            x["adv_newcard_pairs_board"] = int(new_r in prev_ranks)
+
+            # Flush gets closer/completes
+            prev_max_suit = 0
+            for s in set(prev_suits):
+                prev_max_suit = max(prev_max_suit, prev_suits.count(s))
+            new_max_suit = max_suit
+            x["adv_newcard_increases_flushiness"] = int(new_max_suit > prev_max_suit)
+
+            # Straightiness improves (run length proxy)
+            prev_rr = sorted(set(prev_ranks))
+            prev_best_run = 1
+            run2 = 1
+            for i in range(1, len(prev_rr)):
+                if prev_rr[i] == prev_rr[i-1] + 1:
+                    run2 += 1
+                    prev_best_run = max(prev_best_run, run2)
+                else:
+                    run2 = 1
+            x["adv_newcard_increases_straightiness"] = int(best_run > prev_best_run)
+        else:
+            x["adv_newcard_pairs_board"] = 0
+            x["adv_newcard_increases_flushiness"] = 0
+            x["adv_newcard_increases_straightiness"] = 0
+    else:
+        x["adv_board_high_rank"] = 0
+        x["adv_board_spread"] = 0
+        x["adv_board_best_runlen"] = 0
+        x["adv_board_max_suit"] = 0
+        x["adv_board_broadway_cnt"] = 0
+        x["adv_board_wetness"] = 0.0
+        x["adv_board_wetness_bucket"] = 0
+        x["adv_newcard_pairs_board"] = 0
+        x["adv_newcard_increases_flushiness"] = 0
+        x["adv_newcard_increases_straightiness"] = 0
+
+    # --- Optional: cheap “log chips” scalars (helps scale invariance) ---
+    x["adv_log_pot_bb"] = float(_log1p_bb(pot))
+    x["adv_log_stack_bb"] = float(_log1p_bb(stack))
+    x["adv_log_call_bb"] = float(_log1p_bb(call))
+
+    # --- Postflop: initiative/cbet follow-through nuance (beyond your existing flags) ---
+    if is_postflop:
+        # "Opportunity for aggressor to barrel" proxy:
+        # if PFR exists and last aggressor this street is PFR, pressure is higher.
+        x["adv_pfr_is_current_aggressor"] = int(pfr_pid is not None and last_agg_pid_this_street == pfr_pid)
+        # If hero has initiative and is facing action now, that’s a different regime than no initiative.
+        x["adv_hero_facing_action_with_initiative"] = int(x.get("has_initiative_prev_street", 0) == 1 and x.get("facing_bet", 0) == 1)
+    else:
+        x["adv_pfr_is_current_aggressor"] = 0
+        x["adv_hero_facing_action_with_initiative"] = 0
+
+
 def extract_pluribus_actions_mamba(
     hand: Dict[str, Any],
     *,
@@ -610,6 +857,7 @@ def extract_pluribus_actions_mamba(
     r1, s1, r2, s2 = encode_hand(hero_hand)
 
     steps: List[Dict[str, Any]] = []
+    
     max_bet = 0.0
     current_street = "preflop"
     live: Set[str] = {f"p{i}" for i in range(1, 7)}
@@ -680,6 +928,24 @@ def extract_pluribus_actions_mamba(
         pid = parts[0]
         a_type = parts[1] if len(parts) > 1 else ""
         a_amt = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
+
+        ###debug#####
+        DECISION = {"f", "cc", "cbr"}
+
+        # Skip non-decision actions like sm, show, etc.
+        if a_type not in DECISION:
+            continue
+        ###debug#####
+
+
+        if a_type in ("cc", "cbr") and (len(parts) > 2) and a_amt is None:
+          print(
+              "[BAD_AMT_PARSE] hand=", f"{file_path}_{hand.get('hand','unknown')}",
+              "idx=", idx, "street=", street,
+              "raw_act=", act,
+              "parts2=", parts[2],
+          )
+              
 
         # Track street sequencing (only from history up to this node)
         acted_pids_this_street.add(pid)
@@ -923,12 +1189,53 @@ def extract_pluribus_actions_mamba(
                 # Cheap equity proxies / blockers from your bucket function
                 x.update(_hand_buckets(r1, s1, r2, s2))
 
+
+            ######NEW##########
+            _augment_pluribus_step_features(
+                  x,
+                  street=street,
+                  hero_tag=hero_tag,
+                  hero_seat=hero_seat,
+                  seat_order=seat_order,
+                  live=live,
+                  acted_pids_this_street=acted_pids_this_street,
+                  last_agg_pid_this_street=last_agg_pid_this_street,
+                  pfr_pid=pfr_pid,
+                  raises_this_street=raises_this_street,
+                  calls_this_street=calls_this_street,
+                  players_to_act_behind=players_to_act_behind,
+                  opp_actions_since_last_hero=opp_actions_since_last_hero,
+                  hero_stack=hero_stack,
+                  hero_stack0=hero_stack0,
+                  cur_pot=cur_pot,
+                  to_call=to_call,
+                  bb_amt=bb_amt,
+                  board_sofar=board_sofar,
+              )
+          ##############NEW#############
+
+
+
             # ── Label (unchanged) ─────────────────────────────────────────────
             label_str = (
                 _label_preflop(a_type, a_amt, bb_amt, int(hero_stack))
                 if street == "preflop"
                 else _label_postflop(a_type, a_amt, float(cur_pot), int(hero_stack))
             )
+
+            ########DEBUG##########
+            if label_str not in ACTION_TO_ID:
+              print(
+                  "[DROP_STEP] hand=", f"{file_path}_{hand.get('hand','unknown')}",
+                  "idx=", idx, "street=", street,
+                  "raw_act=", act,
+                  "pid=", pid, "a_type=", a_type, "a_amt=", a_amt,
+                  "label_str=", label_str,
+              )
+              continue
+            ########DEBUG##########
+
+
             if label_str not in ACTION_TO_ID:
                 continue
 
@@ -961,6 +1268,7 @@ def extract_pluribus_actions_mamba(
             # reset opponent-actions counter since hero acted
             opp_actions_since_last_hero = 0
 
+
     return {"hand_id": f"{file_path}_{hand.get('hand', 'unknown')}", "steps": steps}
 
 
@@ -987,6 +1295,13 @@ def process_phh_zip(zip_path: str, name: str = "Pluribus") -> List[Dict[str, Any
 
                 if seq["steps"]:
                     sequences.append(seq)
+                
+                ####debug#####
+                else:
+                    print("[DROP_HAND] file=", fname, "hand=", hand.get("hand", "unknown"), "reason=empty_steps")
+                 ####debug#####
+
+
             except Exception as e:
                 print(f"⚠️ Failed on {fname}: {e}")
     return sequences
@@ -1575,6 +1890,20 @@ def collate_mamba_batch(
         hand_ids.append(hand_seq.get("hand_id", str(b)))
         steps = hand_seq.get("steps", [])
         for t, step in enumerate(steps[:T_max]):
+            #####DEBUG######
+            if "y" not in step:
+                print("[MISSING_Y] hand=", hand_seq.get("hand_id", str(b)), "t=", t)
+
+            legal_mask = step.get("legal_mask", None)
+            if legal_mask is None:
+                print("[MISSING_LEGAL] hand=", hand_seq.get("hand_id", str(b)), "t=", t)
+            else:
+                if len(legal_mask) != NUM_ACTIONS:
+                    print("[BAD_LEGAL_LEN] hand=", hand_seq.get("hand_id", str(b)), "t=", t, "len=", len(legal_mask))
+                if sum(int(v) for v in legal_mask) == 0:
+                    print("[ALL_ILLEGAL] hand=", hand_seq.get("hand_id", str(b)), "t=", t)
+          #######dEBUG######
+
             x = step.get("x", {})
             X[b, t, :] = np.asarray([float(x.get(k, 0.0)) for k in feature_keys], dtype=np.float32)
             y[b, t] = int(step.get("y", 0))
