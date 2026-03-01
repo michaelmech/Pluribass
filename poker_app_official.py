@@ -158,6 +158,112 @@ def parse_hole_cards(hole):
     hi, lo = (r1, r2) if r1 >= r2 else (r2, r1)
     return hi, lo, (s1 == s2), (r1 == r2)
 
+
+def _hand_matches(min_hi: int, min_lo: int, hi: int, lo: int, suited: bool, need_suited: bool | None = None) -> bool:
+    """Threshold helper for compact range checks (e.g., ATo+, A8s+)."""
+    if hi < min_hi:
+        return False
+    if hi == min_hi and lo < min_lo:
+        return False
+    if need_suited is None:
+        return True
+    return suited == need_suited
+
+
+def should_continue_preflop(
+    hole: List[str],
+    *,
+    position: str,
+    heads_up: bool,
+    facing_raise: bool,
+    to_call_bb: float,
+) -> bool:
+    """
+    Deterministic preflop continue gate.
+
+    Goal: prevent very weak continues (e.g., 72o all-in calls) in multiway pots,
+    while allowing wider heads-up play.
+    """
+    parsed = parse_hole_cards(hole)
+    if not parsed:
+        return False
+    hi, lo, suited, is_pair = parsed
+
+    # Premiums: always continue.
+    if is_pair and hi >= 10:  # TT+
+        return True
+    if _hand_matches(14, 11, hi, lo, suited, need_suited=None):  # AJo+
+        return True
+    if _hand_matches(14, 10, hi, lo, suited, need_suited=True):  # ATs+
+        return True
+    if suited and hi == 13 and lo >= 11:  # KJs+
+        return True
+    if hi == 13 and lo == 12:  # KQ (suited or offsuit)
+        return True
+
+    # Heads-up ranges can be materially wider.
+    if heads_up:
+        if is_pair:
+            return True
+        if hi == 14:  # any Ax
+            return True
+        if suited and hi == 13 and lo >= 9:  # K9s+
+            return True
+        if hi == 13 and lo >= 10:  # KTo+
+            return True
+        if suited and hi == 12 and lo >= 9:  # Q9s+
+            return True
+        if suited and hi == 11 and lo >= 8:  # J8s+
+            return True
+        if suited and ((hi, lo) in {(10, 9), (9, 8), (8, 7), (7, 6)}):
+            return True
+        return False
+
+    # Multiway facing strong aggression -> tighten significantly.
+    if facing_raise and to_call_bb >= 8.0:
+        if is_pair and hi >= 9:  # 99+
+            return True
+        if _hand_matches(14, 12, hi, lo, suited, need_suited=None):  # AQo+
+            return True
+        if _hand_matches(14, 11, hi, lo, suited, need_suited=True):  # AJs+
+            return True
+        if suited and ((hi, lo) in {(13, 12), (12, 11), (11, 10)}):  # KQs/QJs/JTs
+            return True
+        return False
+
+    # Multiway unopened or small raise: position-aware opens/continues.
+    pos = (position or "Unknown").upper()
+    if pos in {"UTG", "MP"}:
+        if is_pair and hi >= 7:  # 77+
+            return True
+        if _hand_matches(14, 10, hi, lo, suited, need_suited=None):  # ATo+
+            return True
+        if _hand_matches(14, 8, hi, lo, suited, need_suited=True):  # A8s+
+            return True
+        if hi == 13 and lo >= 11:  # KJo+
+            return True
+        if suited and ((hi, lo) in {(13, 10), (12, 11), (11, 10), (10, 9)}):
+            return True
+        return False
+
+    # CO/BTN/SB/BB (non-HU): modestly wider.
+    if is_pair and hi >= 5:  # 55+
+        return True
+    if _hand_matches(14, 9, hi, lo, suited, need_suited=None):  # A9o+
+        return True
+    if _hand_matches(14, 5, hi, lo, suited, need_suited=True):  # A5s+
+        return True
+    if hi == 13 and lo >= 9:  # K9+
+        return True
+    if suited and hi == 12 and lo >= 8:  # Q8s+
+        return True
+    if suited and hi == 11 and lo >= 8:  # J8s+
+        return True
+    if suited and ((hi, lo) in {(10, 9), (9, 8), (8, 7), (7, 6), (6, 5)}):
+        return True
+
+    return False
+
 # --- NASH EQUILIBRIUM LOGIC -------------------------------------------------
 
 def is_nash_push(pos, hi, lo, suited, is_pair, eff_bb, facing_raise=False):
@@ -2152,6 +2258,29 @@ class TransformerBot:
         """
         Returns (action, amount) for the acting seat.
         """
+        hero = gs.players[seat_idx]
+        to_call = max(gs.current_bet - hero.bet_this_street, 0)
+
+        # Deterministic preflop quality gate: avoid very weak continue ranges in
+        # multiway pots (e.g., calling all-in with 72o), but allow wider HU play.
+        if getattr(gs, "street", "").lower() == "preflop":
+            live_players = len(gs.get_live_players()) if hasattr(gs, "get_live_players") else sum(
+                1 for p in gs.players if not getattr(p, "folded", False)
+            )
+            heads_up = live_players <= 2
+            position = gs.get_position_label(seat_idx) if hasattr(gs, "get_position_label") else "Unknown"
+            facing_raise = gs.current_bet > gs.bb_amount and to_call > 0
+            to_call_bb = float(to_call) / max(1.0, float(gs.bb_amount))
+
+            if not should_continue_preflop(
+                getattr(hero, "hole", []),
+                position=position,
+                heads_up=heads_up,
+                facing_raise=facing_raise,
+                to_call_bb=to_call_bb,
+            ):
+                return ("fold", 0) if to_call > 0 else ("call", 0)
+
         X_seq, key_padding_mask, legal_last = self._state_to_seq_and_mask(gs, seat_idx)
 
         keys = self.feature_keys or [f"f{i}" for i in range(X_seq.shape[-1])]
@@ -2179,7 +2308,7 @@ class TransformerBot:
             masked_logits = torch.where(legal, logits, very_neg)
 
             # Greedy or temperature sampling
-            if self.temperature > 0:
+            if self.temperature > 0 and getattr(gs, "street", "").lower() != "preflop":
                 probs = torch.softmax(masked_logits / self.temperature, dim=-1)
                 if not torch.isfinite(probs).all() or probs.sum() <= 0:
                     legal_f = legal.float()
@@ -2189,9 +2318,6 @@ class TransformerBot:
                 act_id = int(torch.argmax(masked_logits).item())
 
         action = ACTIONS[act_id]
-        hero = gs.players[seat_idx]
-        to_call = max(gs.current_bet - hero.bet_this_street, 0)
-
         if action == "fold":
             return ("fold", 0)
 
