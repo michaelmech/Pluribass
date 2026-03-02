@@ -1844,7 +1844,7 @@ from mamba_data_gen import (
 
 # If not already present:
 ACTIONS = ["fold", "call", "raise"]  # index-aligned with your model’s logits
-DEFAULT_CKPT = 'transformers_opponent=4.pt'
+DEFAULT_CKPT = 'transformers_opponent=5.pt'
 
 class MambaBot:
     """
@@ -2235,7 +2235,6 @@ class TransformerBot:
         self.loaded_n_remaining_players: Optional[int] = None
         self.ckpt_path = ckpt_path
 
-        st.warning('attempting initial load')
         self.model, self.normalizer, self.feature_keys, self.model_cfg = (
             load_poker_transformer(ckpt_path, device=str(self.device))
         )
@@ -2257,21 +2256,7 @@ class TransformerBot:
         self.raise_outputs = raise_outputs
 
 
-    def _reload_model_for_remaining_players(self, gs) -> None:
-        st.warning('new load')
-        n_remaining_players = sum(1 for p in gs.players if getattr(p, "stack", 0) > 0)-1
-        if n_remaining_players == self.loaded_n_remaining_players:
-            return
-        ckpt_path = f"transformers_opponent={n_remaining_players}.pt"
-
-        st.warning('reloading')
-        del self.model,self.normalizer,self.feature_keys,self.model_cfg
-        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
-            load_poker_transformer(ckpt_path, device=str(self.device))
-        )
-        self.model.eval()
-        
-        self.loaded_n_remaining_players = n_remaining_players
+   
         
 
     # ── Public UI-facing method ───────────────────────────────────────────────
@@ -2279,7 +2264,7 @@ class TransformerBot:
         """
         Returns (action, amount) for the acting seat.
         """
-        self._reload_model_for_remaining_players(gs)
+  
 
         hero = gs.players[seat_idx]
         to_call = max(gs.current_bet - hero.bet_this_street, 0)
