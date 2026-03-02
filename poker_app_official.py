@@ -1844,7 +1844,7 @@ from mamba_data_gen import (
 
 # If not already present:
 ACTIONS = ["fold", "call", "raise"]  # index-aligned with your model’s logits
-DEFAULT_CKPT = 'transformers_opponent=5.pt'
+DEFAULT_CKPT = 'transformers_opponent=1.pt'
 
 class MambaBot:
     """
