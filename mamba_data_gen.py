@@ -1934,7 +1934,7 @@ def load_poker_transformer(ckpt_path: str, device: Optional[torch.device] = None
     from dataclasses import is_dataclass
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu",weights_only=False)
 
     # 1) Rebuild model_cfg dataclass
     model_cfg_obj = ckpt.get("model_cfg")
