@@ -443,21 +443,12 @@ def split_by_hand(data: Dict[str, torch.Tensor], val_ratio: float = 0.1, seed: i
 import torch
 from typing import Dict, Optional
 
-
-def _load_checkpoint_compat(ckpt_path: str):
-    """Load checkpoints across PyTorch versions (incl. 2.6+ weights_only default)."""
-    try:
-        return torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    except TypeError:
-        # Older PyTorch versions without the weights_only kwarg
-        return torch.load(ckpt_path, map_location="cpu")
-
 # --- Rebuild config/normalizer and model from a checkpoint ---
 def load_poker_mamba(ckpt_path: str, device: Optional[torch.device] = None):
     from dataclasses import is_dataclass
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt = _load_checkpoint_compat(ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
 
     # 1) Rebuild model_cfg dataclass
     model_cfg_obj = ckpt.get("model_cfg")
@@ -1943,7 +1934,7 @@ def load_poker_transformer(ckpt_path: str, device: Optional[torch.device] = None
     from dataclasses import is_dataclass
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt = _load_checkpoint_compat(ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
 
     # 1) Rebuild model_cfg dataclass
     model_cfg_obj = ckpt.get("model_cfg")
