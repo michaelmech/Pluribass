@@ -1844,7 +1844,7 @@ from mamba_data_gen import (
 
 # If not already present:
 ACTIONS = ["fold", "call", "raise"]  # index-aligned with your model’s logits
-DEFAULT_CKPT = 'transformers_opponent=3.pt'
+DEFAULT_CKPT = 'transformers_opponent=4.pt'
 
 class MambaBot:
     """
@@ -2203,7 +2203,6 @@ import pickle
 import pandas as pd  # only if you use the tabular raise model
 
 ACTIONS = ["fold", "call", "raise"]
-DEFAULT_CKPT = "augment_poker_transformer.pt"
 
 # You provide these:
 # - extract_pluribus_actions_mamba(...)
