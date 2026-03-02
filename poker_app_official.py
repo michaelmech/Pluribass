@@ -22,7 +22,7 @@ import pandas as pd
 import lightgbm as lgb
 from datetime import datetime
 
-MAMBA_CKPT = "poker_transformer_grokfast_class_weighted_classifier.pt"  # your saved file
+MAMBA_CKPT = "transformers_opponent=5.pt"  # default 6-player table (hero + 5 opponents)
 device = torch.device("cpu")  # per your preference
 #model, normalizer, feature_keys, _ = load_poker_mamba(MAMBA_CKPT, device=device)
 model, normalizer, _, _ = load_poker_transformer(MAMBA_CKPT, device=device)
@@ -723,6 +723,7 @@ class GameStateOriginal:
         ]
 
         self.bot_names = bot_names
+        self.opponents_left = max(len(self.players) - 1, 0)
 
 
     def reset_game(self, hero_stack: int = 10000, bot_stack: int = 10000):
@@ -733,6 +734,7 @@ class GameStateOriginal:
         self.players = [Player(hero_name, hero_stack, is_bot=False)] + [
         Player(name, bot_stack, is_bot=True) for name in self.bot_names
             ]
+        self.opponents_left = max(len(self.players) - 1, 0)
 
         # reset bookkeeping that depends on player count
         self.button_pos = -1
@@ -746,6 +748,7 @@ class GameStateOriginal:
     
         """Resets the game state for a new hand."""
         self.players = [self.players[0]] + [p for p in self.players[1:] if p.stack > 0]
+        self.opponents_left = max(len(self.players) - 1, 0)
         self.starting_stacks = [p.stack for p in self.players]
         self.last_raise_increment = self.bb_amount  # ← new default
 
@@ -2202,7 +2205,7 @@ import pickle
 import pandas as pd  # only if you use the tabular raise model
 
 ACTIONS = ["fold", "call", "raise"]
-DEFAULT_CKPT = "augment_poker_transformer.pt"
+DEFAULT_CKPT = "transformers_opponent=5.pt"
 
 # You provide these:
 # - extract_pluribus_actions_mamba(...)
@@ -2232,12 +2235,11 @@ class TransformerBot:
         name: str = "Pluribass",
     ):
         self.device = device or torch.device("cpu")
+        self.ckpt_template = "transformers_opponent={opponents}.pt"
+        self.current_opponents_left: Optional[int] = None
 
-        # 🔁 CHANGED: new loader signature & unpack order
-        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
-            load_poker_transformer(ckpt_path, device=str(self.device))
-        )
-        self.model.eval()
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (None, None, None, None)
+        self._load_transformer_model(ckpt_path)
 
         self.phh_builder = phh_builder
         self.temperature = float(temperature) if temperature else 0.0
@@ -2253,11 +2255,31 @@ class TransformerBot:
         assert raise_outputs in ("multiplier", "total")
         self.raise_outputs = raise_outputs
 
+    def _load_transformer_model(self, ckpt_path: str) -> None:
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
+            load_poker_transformer(ckpt_path, device=str(self.device))
+        )
+        self.model.eval()
+
+    def _maybe_update_model_for_game_state(self, gs) -> None:
+        opponents_left = getattr(gs, "opponents_left", None)
+        if opponents_left is None:
+            opponents_left = max(len(getattr(gs, "players", [])) - 1, 1)
+        opponents_left = int(max(1, min(5, opponents_left)))
+
+        if self.current_opponents_left == opponents_left:
+            return
+
+        self._load_transformer_model(self.ckpt_template.format(opponents=opponents_left))
+        self.current_opponents_left = opponents_left
+
     # ── Public UI-facing method ───────────────────────────────────────────────
     def get_action(self, gs, seat_idx: int) -> Tuple[str, int]:
         """
         Returns (action, amount) for the acting seat.
         """
+        self._maybe_update_model_for_game_state(gs)
+
         hero = gs.players[seat_idx]
         to_call = max(gs.current_bet - hero.bet_this_street, 0)
 
@@ -2479,7 +2501,7 @@ def _ensure_game_in_session():
 
     if fresh_needed:
         # ⚠️  create the *bot* objects first …
-        st.session_state.bots=  [TransformerBot("augment_poker_transformer.pt") for i in range( 1,6)]
+        st.session_state.bots=  [TransformerBot() for i in range( 1,6)]
 
         #st.session_state.bots=[ Zach(),Yanchen(), William(),DonKeyxote(),MechIII()]
 
@@ -3007,7 +3029,7 @@ with st.sidebar:
     # Keep the button in the sidebar and give it a key
     if st.button("New Game (reset stacks)", key="sidebar_new_game"):
         # (Re)build bots
-        st.session_state.bots = [TransformerBot("augment_poker_transformer.pt") for _ in range(5)]
+        st.session_state.bots = [TransformerBot() for _ in range(5)]
         for i, bot in enumerate(st.session_state.bots):
             bot.name += str(i)
 
