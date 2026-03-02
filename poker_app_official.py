@@ -2239,7 +2239,7 @@ class TransformerBot:
         self.current_opponents_left: Optional[int] = None
 
         self.model, self.normalizer, self.feature_keys, self.model_cfg = (None, None, None, None)
-        self._load_transformer_model_with_fallback(ckpt_path)
+        self._load_transformer_model(ckpt_path)
 
         self.phh_builder = phh_builder
         self.temperature = float(temperature) if temperature else 0.0
@@ -2261,45 +2261,6 @@ class TransformerBot:
         )
         self.model.eval()
 
-    def _load_transformer_model_with_fallback(self, preferred_ckpt_path: str) -> bool:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-
-        def _abspath(path: str) -> str:
-            return path if os.path.isabs(path) else os.path.join(base_dir, path)
-
-        candidates: List[str] = []
-
-        def _push(path: str) -> None:
-            ab = _abspath(path)
-            if ab not in candidates:
-                candidates.append(ab)
-
-        _push(preferred_ckpt_path)
-        _push(DEFAULT_CKPT)
-
-        # If a specific opponent file is missing/corrupt, walk down to other opponent models.
-        for opp in range(5, 0, -1):
-            _push(self.ckpt_template.format(opponents=opp))
-
-        # Legacy fallback
-        _push("augment_poker_transformer.pt")
-
-        last_exc = None
-        for ckpt_path in candidates:
-            if not os.path.exists(ckpt_path):
-                continue
-            try:
-                self._load_transformer_model(ckpt_path)
-                return True
-            except Exception as exc:
-                last_exc = exc
-
-        if last_exc is not None:
-            raise RuntimeError(
-                f"Unable to load any transformer checkpoint from {candidates}. Last error: {last_exc}"
-            ) from last_exc
-        raise FileNotFoundError(f"No transformer checkpoint found in candidates: {candidates}")
-
     def _maybe_update_model_for_game_state(self, gs) -> None:
         opponents_left = getattr(gs, "opponents_left", None)
         if opponents_left is None:
@@ -2309,9 +2270,8 @@ class TransformerBot:
         if self.current_opponents_left == opponents_left:
             return
 
-        ckpt_path = self.ckpt_template.format(opponents=opponents_left)
-        if self._load_transformer_model_with_fallback(ckpt_path):
-            self.current_opponents_left = opponents_left
+        self._load_transformer_model(self.ckpt_template.format(opponents=opponents_left))
+        self.current_opponents_left = opponents_left
 
     # ── Public UI-facing method ───────────────────────────────────────────────
     def get_action(self, gs, seat_idx: int) -> Tuple[str, int]:
