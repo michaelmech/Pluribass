@@ -2235,7 +2235,12 @@ class TransformerBot:
         self.loaded_n_remaining_players: Optional[int] = None
         self.ckpt_path = ckpt_path
 
-        self._load_transformer_checkpoint(ckpt_path)
+        st.warning('attempting initial load')
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
+            load_poker_transformer(ckpt_path, device=str(self.device))
+        )
+        
+        self.model.eval()
 
         self.phh_builder = phh_builder
         self.temperature = float(temperature) if temperature else 0.0
@@ -2251,20 +2256,23 @@ class TransformerBot:
         assert raise_outputs in ("multiplier", "total")
         self.raise_outputs = raise_outputs
 
-    def _load_transformer_checkpoint(self, ckpt_path: str) -> None:
-        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
-            load_poker_transformer(ckpt_path, device=str(self.device))
-        )
-        self.model.eval()
 
     def _reload_model_for_remaining_players(self, gs) -> None:
+        st.warning('new load')
         n_remaining_players = sum(1 for p in gs.players if getattr(p, "stack", 0) > 0)-1
         if n_remaining_players == self.loaded_n_remaining_players:
             return
         ckpt_path = f"transformers_opponent={n_remaining_players}.pt"
-        self._load_transformer_checkpoint(ckpt_path)
+
+        st.warning('reloading')
+        del self.model,self.normalizer,self.feature_keys,self.model_cfg
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
+            load_poker_transformer(ckpt_path, device=str(self.device))
+        )
+        self.model.eval()
+        
         self.loaded_n_remaining_players = n_remaining_players
-        self.ckpt_path = ckpt_path
+        
 
     # ── Public UI-facing method ───────────────────────────────────────────────
     def get_action(self, gs, seat_idx: int) -> Tuple[str, int]:
