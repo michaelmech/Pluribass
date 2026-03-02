@@ -2232,12 +2232,10 @@ class TransformerBot:
         name: str = "Pluribass",
     ):
         self.device = device or torch.device("cpu")
+        self.loaded_n_remaining_players: Optional[int] = None
+        self.ckpt_path = ckpt_path
 
-        # 🔁 CHANGED: new loader signature & unpack order
-        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
-            load_poker_transformer(ckpt_path, device=str(self.device))
-        )
-        self.model.eval()
+        self._load_transformer_checkpoint(ckpt_path)
 
         self.phh_builder = phh_builder
         self.temperature = float(temperature) if temperature else 0.0
@@ -2253,33 +2251,30 @@ class TransformerBot:
         assert raise_outputs in ("multiplier", "total")
         self.raise_outputs = raise_outputs
 
+    def _load_transformer_checkpoint(self, ckpt_path: str) -> None:
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
+            load_poker_transformer(ckpt_path, device=str(self.device))
+        )
+        self.model.eval()
+
+    def _reload_model_for_remaining_players(self, gs) -> None:
+        n_remaining_players = sum(1 for p in gs.players if getattr(p, "stack", 0) > 0)
+        if n_remaining_players == self.loaded_n_remaining_players:
+            return
+        ckpt_path = f"transformers_opponent={n_remaining_players}.pt"
+        self._load_transformer_checkpoint(ckpt_path)
+        self.loaded_n_remaining_players = n_remaining_players
+        self.ckpt_path = ckpt_path
+
     # ── Public UI-facing method ───────────────────────────────────────────────
     def get_action(self, gs, seat_idx: int) -> Tuple[str, int]:
         """
         Returns (action, amount) for the acting seat.
         """
+        self._reload_model_for_remaining_players(gs)
+
         hero = gs.players[seat_idx]
         to_call = max(gs.current_bet - hero.bet_this_street, 0)
-
-        # Deterministic preflop quality gate: avoid very weak continue ranges in
-        # multiway pots (e.g., calling all-in with 72o), but allow wider HU play.
-        if getattr(gs, "street", "").lower() == "preflop":
-            live_players = len(gs.get_live_players()) if hasattr(gs, "get_live_players") else sum(
-                1 for p in gs.players if not getattr(p, "folded", False)
-            )
-            heads_up = live_players <= 2
-            position = gs.get_position_label(seat_idx) if hasattr(gs, "get_position_label") else "Unknown"
-            facing_raise = gs.current_bet > gs.bb_amount and to_call > 0
-            to_call_bb = float(to_call) / max(1.0, float(gs.bb_amount))
-
-            if not should_continue_preflop(
-                getattr(hero, "hole", []),
-                position=position,
-                heads_up=heads_up,
-                facing_raise=facing_raise,
-                to_call_bb=to_call_bb,
-            ):
-                return ("fold", 0) if to_call > 0 else ("call", 0)
 
         X_seq, key_padding_mask, legal_last = self._state_to_seq_and_mask(gs, seat_idx)
 
