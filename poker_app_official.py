@@ -23,7 +23,7 @@ import lightgbm as lgb
 from datetime import datetime
 
 #MAMBA_CKPT = "poker_transformer_grokfast_class_weighted_classifier.pt"  # your saved file
-MAMBA_CKPT = 'transformers_opponent=4.pt'
+MAMBA_CKPT = 'transformers_opponent=3.pt'
 device = torch.device("cpu")  # per your preference
 # Keep module import resilient: bot instances load checkpoints when needed.
 model, normalizer = None, None
