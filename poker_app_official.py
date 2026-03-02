@@ -2258,7 +2258,7 @@ class TransformerBot:
         self.model.eval()
 
     def _reload_model_for_remaining_players(self, gs) -> None:
-        n_remaining_players = sum(1 for p in gs.players if getattr(p, "stack", 0) > 0)
+        n_remaining_players = sum(1 for p in gs.players if getattr(p, "stack", 0) > 0)-1
         if n_remaining_players == self.loaded_n_remaining_players:
             return
         ckpt_path = f"transformers_opponent={n_remaining_players}.pt"
