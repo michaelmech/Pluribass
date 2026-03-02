@@ -24,8 +24,8 @@ from datetime import datetime
 
 MAMBA_CKPT = "transformers_opponent=5.pt"  # default 6-player table (hero + 5 opponents)
 device = torch.device("cpu")  # per your preference
-#model, normalizer, feature_keys, _ = load_poker_mamba(MAMBA_CKPT, device=device)
-model, normalizer, _, _ = load_poker_transformer(MAMBA_CKPT, device=device)
+# Keep module import resilient: bot instances load checkpoints when needed.
+model, normalizer = None, None
 
 class PickleableBooster:
     """A thin, sklearn-style wrapper around a LightGBM Booster."""
