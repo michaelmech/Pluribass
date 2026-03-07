@@ -23,7 +23,7 @@ import lightgbm as lgb
 from datetime import datetime
 
 #MAMBA_CKPT = "poker_transformer_grokfast_class_weighted_classifier.pt"  # your saved file
-MAMBA_CKPT = 'transformers_opponent=3.pt'
+MAMBA_CKPT = 'transformers_opponent=5.pt'
 device = torch.device("cpu")  # per your preference
 # Keep module import resilient: bot instances load checkpoints when needed.
 model, normalizer = None, None
@@ -1386,6 +1386,7 @@ class PickleableBooster:
 
 
 ACTIONS = ["fold", "call", "raise"]
+HEADS_UP_CKPT = "transformers_opponent=1.pt"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -2233,6 +2234,8 @@ class TransformerBot:
     ):
         self.device = device or torch.device("cpu")
         self.loaded_n_remaining_players: Optional[int] = None
+        self.default_ckpt_path = ckpt_path
+        self.heads_up_ckpt_path = HEADS_UP_CKPT
         self.ckpt_path = ckpt_path
 
         self.model, self.normalizer, self.feature_keys, self.model_cfg = (
@@ -2255,6 +2258,32 @@ class TransformerBot:
         assert raise_outputs in ("multiplier", "total")
         self.raise_outputs = raise_outputs
 
+    def _maybe_switch_transformer_checkpoint(self, gs, seat_idx: int) -> None:
+        """
+        Use heads-up checkpoint only when exactly one opponent remains live.
+        Otherwise, always use the default checkpoint.
+        """
+        live_opponents = [
+            p for i, p in enumerate(gs.players)
+            if i != seat_idx and not p.folded
+        ]
+        n_live_opponents = len(live_opponents)
+        target_ckpt = (
+            self.heads_up_ckpt_path
+            if n_live_opponents == 1
+            else self.default_ckpt_path
+        )
+
+        if self.ckpt_path == target_ckpt and self.loaded_n_remaining_players == n_live_opponents:
+            return
+
+        self.model, self.normalizer, self.feature_keys, self.model_cfg = (
+            load_poker_transformer(target_ckpt, device=str(self.device))
+        )
+        self.model.eval()
+        self.ckpt_path = target_ckpt
+        self.loaded_n_remaining_players = n_live_opponents
+
 
    
         
@@ -2268,6 +2297,8 @@ class TransformerBot:
 
         hero = gs.players[seat_idx]
         to_call = max(gs.current_bet - hero.bet_this_street, 0)
+
+        self._maybe_switch_transformer_checkpoint(gs, seat_idx)
 
         X_seq, key_padding_mask, legal_last = self._state_to_seq_and_mask(gs, seat_idx)
 
